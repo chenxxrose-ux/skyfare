@@ -14,7 +14,7 @@ binding = "SKYFARE"
 id = "0e51e904de584490a3e2ddd811f46037"
 
 [vars]
-TELEGRAM_BOT = "your_bot_name"            # 機器人帳號，不含 @
+TELEGRAM_BOT = "skyfare_rose_bot"           # 機器人帳號，不含 @
 SITE_URL = "https://chenxxrose-ux.github.io/skyfare"
 ALLOWED_ORIGIN = "https://chenxxrose-ux.github.io"
 CURRENCY = "TWD"
