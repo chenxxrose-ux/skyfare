@@ -341,11 +341,12 @@ button { cursor: pointer; }
     <div class="w-head">
       <div>
         <h1>我的追蹤</h1>
-        <div class="sub">每天早晚自動查價 2 次。開啟 Telegram 通知，降價時第一時間告訴你。</div>
+        <div class="sub">每天早晚自動查價 2 次。開啟手機通知，降價或位子不夠時第一時間告訴你。</div>
       </div>
       <button class="btn" id="refreshAll">全部更新</button>
     </div>
     <div class="w-grid" id="watchList"></div>
+    <div id="otherWatches"></div>
   </main>
 
   <p class="foot">票價來自 Google 航班，實際價格以訂票頁面為準。</p>
@@ -939,6 +940,33 @@ async function loadWatches(force = false) {
   }));
   store.set("watches", watches);
   renderWatches();
+  loadOthers();
+}
+
+async function loadOthers() {
+  const root = $("#otherWatches");
+  if (DEMO || !root) return;
+  try {
+    const r = await api("/api/watches");
+    const mine = new Set(watches.map((x) => x.id));
+    const others = r.watches.filter((w) => !mine.has(w.id));
+    if (!others.length) { root.innerHTML = ""; return; }
+    root.innerHTML = `<div class="w-head" style="margin-top:28px"><div><h1 style="font-size:20px">其他裝置的追蹤</h1><div class="sub">網站目前共 ${r.watches.length}／${r.max} 筆追蹤（大家共用免費額度）。在其他瀏覽器或主畫面版建立的會列在這裡，可以加到這台裝置查看、開通知。要刪除請回到建立它的那個瀏覽器。</div></div></div>
+      <div class="w-grid">${others.map((w) => {
+        const q = w.query;
+        return `<div class="wcard"><div class="wroute">${esc(routeCode(q.from))}<span>${q.ret ? "⇄" : "→"}</span>${esc(routeCode(q.to))}</div>
+          <div class="wmeta">${shortDate(q.depart)}${q.ret ? " – " + shortDate(q.ret) : ""} · ${esc(paxText(q))}</div>
+          <div class="wmeta mono">${w.flightKey ? (w.returnKey ? "去 " : "") + esc(w.flightKey.replace(/\+/g, " → ")) + (w.returnKey ? " · 回 " + esc(w.returnKey.replace(/\+/g, " → ")) : "") : "整條航線最低價"}</div>
+          <div class="wprice"><span class="amt" style="font-size:22px">${money(w.price)}</span></div>
+          <div class="wactions"><button class="btn primary" data-adopt="${w.id}">加到這台裝置</button></div></div>`;
+      }).join("")}</div>`;
+    root.onclick = (e) => {
+      const b = e.target.closest("[data-adopt]"); if (!b) return;
+      watches.unshift({ id: b.dataset.adopt, key: null, cache: null });
+      store.set("watches", watches);
+      loadWatches();
+    };
+  } catch {}
 }
 
 function renderWatches() {

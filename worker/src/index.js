@@ -75,6 +75,20 @@ export default {
         const v = await getVapid(env);
         return json({ publicKey: v.pub }, 200, cors);
       }
+      if (url.pathname === "/api/watches" && request.method === "GET") {
+        const list = [];
+        let cursor;
+        do {
+          const page = await env.SKYFARE.list({ prefix: "w:", cursor });
+          for (const k of page.keys) {
+            const w = await env.SKYFARE.get(k.name, "json");
+            if (w) list.push({ id: w.id, query: w.query, flightKey: w.flightKey, returnKey: w.returnKey || null, price: w.current?.price ?? null, createdAt: w.createdAt });
+          }
+          cursor = page.list_complete ? null : page.cursor;
+        } while (cursor);
+        list.sort((a, b) => b.createdAt - a.createdAt);
+        return json({ watches: list, max: parseInt(env.MAX_WATCHES || "60", 10) }, 200, cors);
+      }
       if (url.pathname === "/api/watch" && request.method === "POST") {
         const body = await request.json();
         return json(await createWatch(body, env), 201, cors);
