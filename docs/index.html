@@ -600,7 +600,7 @@ function renderResults() {
       <div class="seg" role="group" aria-label="排序">
         ${[["best", "推薦"], ["price", "最便宜"], ["fast", "最快"], ["early", "最早出發"]].map(([k, v]) => `<button data-sort="${k}" aria-pressed="${S.sort === k}">${v}</button>`).join("")}
       </div>
-      <span class="sub">${list.length} 個航班${d.cached ? " · " + ago(d.fetchedAt).replace("更新", "查到的價格") : " · 即時票價"}</span>
+      <span class="sub">${paxOf(q) > 1 ? `都還買得到 ${paxOf(q)} 張 · ` : ""}${list.length} 個航班${d.cached ? " · " + ago(d.fetchedAt).replace("更新", "查到的價格") : " · 即時票價"}</span>
     </div>
     <div class="stack" id="flightList">
       ${list.length ? list.slice(0, S.shown).map((f) => flightCard(f, d, { cheapest, fastest, isRT, mode: isRT ? "out-rt" : "ow" })).join("") : `<div class="empty"><b>沒有符合條件的航班</b>${S.directOnly ? "這天沒有直飛，取消「只看直飛」看看轉機選項。" : "換個日期或附近的機場試試看。"}</div>`}
@@ -674,7 +674,7 @@ function renderReturns() {
       <div class="seg" role="group" aria-label="排序">
         ${[["best", "推薦"], ["price", "最便宜"], ["fast", "最快"], ["early", "最早出發"]].map(([k, v]) => `<button data-sort="${k}" aria-pressed="${S.sort === k}">${v}</button>`).join("")}
       </div>
-      <span class="sub">${list.length} 個回程航班</span>
+      <span class="sub">${paxOf(d.query) > 1 ? `都還買得到 ${paxOf(d.query)} 張 · ` : ""}${list.length} 個回程航班</span>
     </div>
     <div class="stack" id="retList">
       ${list.length ? list.slice(0, S.shown).map((f) => flightCard(f, d, { cheapest, fastest, isRT: true, mode: "return" })).join("") : `<div class="empty"><b>沒有符合條件的回程</b>${S.directOnly ? "取消「只看直飛」看看轉機選項。" : "換一班去程試試看。"}</div>`}
@@ -911,7 +911,7 @@ function trackDone(w, body) {
     <b style="font-size:17px">已開始追蹤</b>
     <div class="sub">目前 ${money(w.current?.price, w.currency)}，系統每天早晚各查一次價。</div>
     <button class="btn primary big" id="pushNow">開啟手機通知</button>
-    <div class="sub">${isIOS && !isStandalone() ? "iPhone 需要先把網頁加到主畫面才能收通知，按上面的按鈕看做法。" : "降價或跌破目標價時，手機會直接跳出通知。"}</div>
+    <div class="sub">${isIOS && !isStandalone() ? "iPhone 需要先把網頁加到主畫面才能收通知，按上面的按鈕看做法。" : `降價、跌破目標價${w.flightKey ? `，或這班剩不到 ${paxOf(w.query)} 個位子時` : ""}，手機會直接跳出通知。`}</div>
     ${tg ? `<a class="btn ghost" href="${tg}" target="_blank" rel="noopener">或改用 Telegram 接收</a>` : ""}
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <button class="btn" id="goWatch">看我的追蹤</button>

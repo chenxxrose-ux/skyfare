@@ -403,7 +403,7 @@ async function checkWatch(env, w, { save = true, initialPrice } = {}) {
   const lowest = data.insights.lowest;
   const price = w.returnKey ? (retMatch ? retMatch.price : null) : w.flightKey ? (match ? match.price : null) : lowest;
 
-  w.lastError = w.flightKey && !match ? "這班航班暫時查不到可售票價，可能已售完或改了時間。" : retError;
+  w.lastError = w.flightKey && !match ? `這班查不到 ${w.query.adults + w.query.children} 張可售的票，可能位子不夠或已售完。` : retError;
   w.current = { price, lowest, level: data.insights.level, typical: data.insights.typical, flight: match || data.flights[0] || null, returnFlight: retMatch };
   w.bookingUrl = data.bookingUrl;
   w.checkedAt = Date.now();
@@ -439,8 +439,10 @@ async function runChecks(env) {
       const reason = shouldNotify(updated, before, now);
       if (reason) {
         await notifyAll(env, updated, reason, before, now);
-        updated.lastNotified = { t: Date.now(), p: now };
+        if (reason === "seats") updated.seatAlerted = true;
+        else updated.lastNotified = { t: Date.now(), p: now };
       }
+      if (now != null) updated.seatAlerted = false;
       await putWatch(env, updated);
     }
     cursor = page.list_complete ? null : page.cursor;
@@ -448,7 +450,12 @@ async function runChecks(env) {
 }
 
 function shouldNotify(w, before, now) {
-  if ((!w.chats?.length && !w.subs?.length) || now == null) return null;
+  if (!w.chats?.length && !w.subs?.length) return null;
+  if (now == null) {
+    // 追蹤的航班查不到足夠的票：可能剩下的位子不夠全部乘客，或已售完
+    if (w.flightKey && before != null && !w.seatAlerted) return "seats";
+    return null;
+  }
   const lastP = w.lastNotified?.p ?? before;
   if (w.target && now <= w.target && (lastP == null || lastP > w.target)) return "target";
   if (lastP != null && now < lastP) return "drop";
@@ -480,18 +487,21 @@ function watchUrl(env, w) {
 
 async function notifyAll(env, w, reason, before, now) {
   const q = w.query;
-  const head = reason === "target" ? "🎯 到達你設定的目標價" : "📉 票價下降了";
+  const pax = q.adults + q.children;
+  const head = reason === "seats" ? `⚠️ 這班可能不到 ${pax} 個位子了` : reason === "target" ? "🎯 到達你設定的目標價" : "📉 票價下降了";
   const lines = [
     `<b>${head}</b>`,
     `${routeLabel(w)}　${q.depart}${q.ret ? " – " + q.ret : ""}`,
     w.flightKey ? `去程 ${w.flightKey.replace(/\+/g, " / ")}${w.returnKey ? `\n回程 ${w.returnKey.replace(/\+/g, " / ")}` : ""}` : "這條航線的最低價",
-    before != null ? `${money(env, before)} → <b>${money(env, now)}</b>` : `現在 <b>${money(env, now)}</b>`,
+    reason === "seats" ? `查不到 ${pax} 張同價位的票，可能快賣完了，建議盡快確認或訂票。` : before != null ? `${money(env, before)} → <b>${money(env, now)}</b>` : `現在 <b>${money(env, now)}</b>`,
   ];
   const buttons = [];
   if (w.bookingUrl) buttons.push({ text: "去 Google 航班訂票", url: w.bookingUrl });
   const site = watchUrl(env, w);
   if (site) buttons.push({ text: "看價格走勢", url: site });
-  const plain = `${routeLabel(w)} ${q.depart}${q.ret ? "–" + q.ret.slice(5) : ""}\n${before != null ? money(env, before) + " → " : "現在 "}${money(env, now)}`;
+  const plain = `${routeLabel(w)} ${q.depart}${q.ret ? "–" + q.ret.slice(5) : ""}\n` + (reason === "seats"
+    ? `查不到 ${pax} 張票，可能快賣完了，建議盡快確認。`
+    : `${before != null ? money(env, before) + " → " : "現在 "}${money(env, now)}`);
   const alive = [];
   for (const sub of w.subs || []) {
     const status = await sendPush(env, sub, { title: head, body: plain, url: site || w.bookingUrl || "./", tag: "w-" + w.id }).catch(() => 0);
