@@ -216,7 +216,7 @@ const queryKey = (q) =>
 
 async function searchFlights(q, env, { useCache, departureToken } = {}) {
   if (!env.SERPAPI_KEY) throw fail(500, "後端還沒設定 SERPAPI_KEY。");
-  const cacheKey = "s:" + queryKey(q) + (departureToken ? "|r:" + (await sha(departureToken)) : "");
+  const cacheKey = "s2:" + queryKey(q) + (departureToken ? "|r:" + (await sha(departureToken)) : "");
   if (useCache) {
     const hit = await env.SKYFARE.get(cacheKey, "json");
     // 舊版快取沒有回程用的 token，來回票遇到時重新查詢
