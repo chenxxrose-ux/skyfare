@@ -886,6 +886,7 @@ function startTrack(flight, ret) {
         const payload = { ...q, return: q.ret || q.return || "", flightKey: mode !== "route" ? flight.key : null, returnKey: mode === "combo" ? ret.key : null, target, price: mode === "combo" ? ret.price : mode === "flight" ? flight.price : routePrice };
         delete payload.ret;
         const w = await api("/api/watch", { method: "POST", body: JSON.stringify(payload) });
+        watches = watches.filter((x) => x.id !== w.id);
         watches.unshift({ id: w.id, key: w.key, cache: w });
         store.set("watches", watches);
         updateCount();

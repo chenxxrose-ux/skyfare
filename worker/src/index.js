@@ -366,15 +366,42 @@ function publicWatch(w) {
 async function createWatch(body, env) {
   const q = parseQuery(body || {});
   const max = parseInt(env.MAX_WATCHES || "60", 10);
-  const existing = await env.SKYFARE.list({ prefix: "w:", limit: max + 1 });
-  if (existing.keys.length >= max) throw fail(429, `目前最多同時追蹤 ${max} 筆，請先刪掉一些舊的。`);
+  const flightKeyIn = body.flightKey ? String(body.flightKey).slice(0, 80) : null;
+  const returnKeyIn = body.returnKey && flightKeyIn ? String(body.returnKey).slice(0, 80) : null;
+  const sig = (x) => [queryKey(x.query), x.flightKey || "", x.returnKey || ""].join("#");
+  const mySig = sig({ query: q, flightKey: flightKeyIn, returnKey: returnKeyIn });
+
+  // 同樣的追蹤只保留一筆：已存在就直接沿用，順便刪掉重複的
+  const all = [];
+  let cursor;
+  do {
+    const page = await env.SKYFARE.list({ prefix: "w:", cursor });
+    for (const k of page.keys) {
+      const w = await env.SKYFARE.get(k.name, "json");
+      if (w) all.push(w);
+    }
+    cursor = page.list_complete ? null : page.cursor;
+  } while (cursor);
+  const same = all.filter((w) => sig(w) === mySig).sort((a, b) => a.createdAt - b.createdAt);
+  if (same.length) {
+    const keep = same[0];
+    for (const dup of same.slice(1)) {
+      keep.subs = [...(keep.subs || []), ...(dup.subs || [])].filter((s, i, arr) => arr.findIndex((t) => t.endpoint === s.endpoint) === i);
+      keep.chats = Array.from(new Set([...(keep.chats || []), ...(dup.chats || [])]));
+      await env.SKYFARE.delete("w:" + dup.id);
+    }
+    if (body.target) keep.target = Math.max(1, parseInt(body.target, 10) || 0) || keep.target;
+    await putWatch(env, keep);
+    return { ...publicWatch(keep), key: keep.key, reused: true };
+  }
+  if (all.length >= max) throw fail(429, `目前最多同時追蹤 ${max} 筆，請先刪掉一些舊的。`);
 
   const w = {
     id: randomId(10),
     key: randomId(24),
     query: q,
-    flightKey: body.flightKey ? String(body.flightKey).slice(0, 80) : null,
-    returnKey: body.returnKey && body.flightKey ? String(body.returnKey).slice(0, 80) : null,
+    flightKey: flightKeyIn,
+    returnKey: returnKeyIn,
     label: body.label ? String(body.label).slice(0, 80) : null,
     target: body.target ? Math.max(1, parseInt(body.target, 10) || 0) || null : null,
     createdAt: Date.now(),
