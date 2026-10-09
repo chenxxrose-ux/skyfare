@@ -1,0 +1,23 @@
+name = "skyfare-api"
+main = "src/index.js"
+compatibility_date = "2026-06-01"
+
+# 每 6 小時檢查一次所有追蹤（台灣時間 2、8、14、20 點）
+# 追蹤筆數 × 每天 4 次 = 每天用掉的查詢次數，免費額度不夠時可以改成 "0 */12 * * *"
+[triggers]
+crons = ["0 0,6,12,18 * * *"]
+
+# 第一次部署前：在 Cloudflare 後台 Workers & Pages → KV 建一個 namespace，把 ID 貼到這裡
+[[kv_namespaces]]
+binding = "SKYFARE"
+id = "PASTE_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+TELEGRAM_BOT = "your_bot_name"            # 機器人帳號，不含 @
+SITE_URL = "https://YOUR_GITHUB_NAME.github.io/skyfare"
+ALLOWED_ORIGIN = "*"                      # 上線後可改成你的 GitHub Pages 網址
+CURRENCY = "TWD"
+MAX_WATCHES = "60"
+
+# 機密資料不要寫在這裡，用 wrangler secret put 或 GitHub Secrets 設定：
+#   SERPAPI_KEY、TELEGRAM_TOKEN、TELEGRAM_SECRET
