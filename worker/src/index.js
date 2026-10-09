@@ -191,7 +191,9 @@ async function searchFlights(q, env, { useCache, departureToken } = {}) {
   const cacheKey = "s:" + queryKey(q) + (departureToken ? "|r:" + (await sha(departureToken)) : "");
   if (useCache) {
     const hit = await env.SKYFARE.get(cacheKey, "json");
-    if (hit) return { ...hit, cached: true };
+    // 舊版快取沒有回程用的 token，來回票遇到時重新查詢
+    const stale = hit && q.ret && !departureToken && hit.flights.length && !hit.flights.some((f) => f.token);
+    if (hit && !stale) return { ...hit, cached: true };
   }
 
   const params = new URLSearchParams({
