@@ -4,10 +4,10 @@ account_id = "ce5a5f9969a44d1d1fa956289e7641dc"
 compatibility_date = "2025-09-01"
 workers_dev = true
 
-# 每 6 小時檢查一次所有追蹤（台灣時間 2、8、14、20 點）
+# 每天檢查 2 次所有追蹤（台灣時間 8 點、20 點）
 # 追蹤筆數 × 每天 4 次 = 每天用掉的查詢次數，免費額度不夠時可以改成 "0 */12 * * *"
 [triggers]
-crons = ["0 0,6,12,18 * * *"]
+crons = ["0 0,12 * * *"]
 
 # 第一次部署前：在 Cloudflare 後台 Workers & Pages → KV 建一個 namespace，把 ID 貼到這裡
 [[kv_namespaces]]
@@ -19,7 +19,7 @@ TELEGRAM_BOT = "skyfare_rose_bot"           # 機器人帳號，不含 @
 SITE_URL = "https://chenxxrose-ux.github.io/skyfare"
 ALLOWED_ORIGIN = "https://chenxxrose-ux.github.io"
 CURRENCY = "TWD"
-MAX_WATCHES = "60"
+MAX_WATCHES = "5"
 
 # 機密資料不要寫在這裡，用 wrangler secret put 或 GitHub Secrets 設定：
 #   SERPAPI_KEY、TELEGRAM_TOKEN、TELEGRAM_SECRET

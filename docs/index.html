@@ -333,7 +333,7 @@ button { cursor: pointer; }
     <div class="w-head">
       <div>
         <h1>我的追蹤</h1>
-        <div class="sub">每天自動查價 4 次。開啟 Telegram 通知，降價時第一時間告訴你。</div>
+        <div class="sub">每天早晚自動查價 2 次。開啟 Telegram 通知，降價時第一時間告訴你。</div>
       </div>
       <button class="btn" id="refreshAll">全部更新</button>
     </div>
@@ -537,7 +537,7 @@ $("#searchForm").onsubmit = async (e) => {
   try {
     const params = new URLSearchParams(q);
     S.data = await api("/api/search?" + params.toString());
-    S.shown = 12; S.sort = "best";
+    S.shown = 12; S.sort = "best"; S.rtSel = null;
     renderResults();
   } catch (err) {
     $("#results").innerHTML = `<div class="empty"><b>查不到票價</b>${esc(err.message)}</div>`;
@@ -549,6 +549,7 @@ $("#searchForm").onsubmit = async (e) => {
 function renderResults() {
   const d = S.data, root = $("#results");
   if (!d) return;
+  if (S.rtSel) return renderReturns();
   const q = d.query;
   const isRT = !!(q.ret || q.return);
   let list = d.flights.slice();
@@ -592,7 +593,7 @@ function renderResults() {
       <span class="sub">${list.length} 個航班${d.cached ? " · " + ago(d.fetchedAt).replace("更新", "查到的價格") : " · 即時票價"}</span>
     </div>
     <div class="stack" id="flightList">
-      ${list.length ? list.slice(0, S.shown).map((f) => flightCard(f, d, { cheapest, fastest, isRT })).join("") : `<div class="empty"><b>沒有符合條件的航班</b>${S.directOnly ? "這天沒有直飛，取消「只看直飛」看看轉機選項。" : "換個日期或附近的機場試試看。"}</div>`}
+      ${list.length ? list.slice(0, S.shown).map((f) => flightCard(f, d, { cheapest, fastest, isRT, mode: isRT ? "out-rt" : "ow" })).join("") : `<div class="empty"><b>沒有符合條件的航班</b>${S.directOnly ? "這天沒有直飛，取消「只看直飛」看看轉機選項。" : "換個日期或附近的機場試試看。"}</div>`}
     </div>
     ${list.length > S.shown ? `<div class="more-wrap"><button class="btn" id="showMore">再顯示 ${Math.min(12, list.length - S.shown)} 個航班</button></div>` : ""}`;
 
@@ -600,8 +601,80 @@ function renderResults() {
   $("#showMore") && ($("#showMore").onclick = () => { S.shown += 12; renderResults(); });
   $("#trackRoute").onclick = () => startTrack(null);
   $("#flightList").onclick = (e) => {
+    const p = e.target.closest("[data-pick]");
+    if (p) return selectOutbound(d.flights.find((f) => f.key === p.dataset.pick));
     const b = e.target.closest("[data-track]"); if (!b) return;
     startTrack(d.flights.find((f) => f.key === b.dataset.track));
+  };
+}
+
+function apiQuery(q) {
+  return { from: q.from, to: q.to, depart: q.depart, return: q.ret || q.return || "", adults: q.adults, children: q.children, cabin: q.cabin };
+}
+
+async function selectOutbound(f) {
+  const root = $("#results");
+  S.rtSel = { outbound: f, data: null };
+  root.innerHTML = returnsHeader(f) + `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
+  bindReturnsHeader();
+  root.scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const params = new URLSearchParams({ ...apiQuery(S.data.query), token: f.token || "demo" });
+    S.rtSel.data = await api("/api/returns?" + params.toString());
+    S.shown = 12; S.sort = "best";
+    renderReturns();
+  } catch (err) {
+    root.innerHTML = returnsHeader(f) + `<div class="empty"><b>查不到回程</b>${esc(err.message)}</div>`;
+    bindReturnsHeader();
+  }
+}
+
+function returnsHeader(f) {
+  const s0 = f.segments[0], sN = f.segments[f.segments.length - 1];
+  const q = S.data.query;
+  return `<section class="summary" style="grid-template-columns:1fr">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="min-width:0">
+        <div class="eyebrow">已選去程 · ${shortDate(q.depart)}</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">${logoHtml(s0)}<div style="min-width:0"><b>${hm(s0.dep)} ${esc(s0.from)} → ${hm(sN.arr)} ${esc(sN.to)}</b><div class="sub mono">${esc(f.segments.map((s) => s.flightNo).join(" → "))} · ${f.stops ? "轉機 " + f.stops + " 次" : "直飛"}</div></div></div>
+      </div>
+      <button class="btn" id="rePick">重選去程</button>
+    </div>
+    <div class="sub">接著選回程 · ${shortDate(q.ret || q.return)}　下面的價格是這組去回程的來回總價</div>
+  </section>`;
+}
+function bindReturnsHeader() {
+  $("#rePick").onclick = () => { S.rtSel = null; S.shown = 12; S.sort = "best"; renderResults(); };
+}
+
+function renderReturns() {
+  const root = $("#results"), sel = S.rtSel, d = sel.data;
+  if (!d) return;
+  let list = d.flights.slice();
+  if (S.directOnly) list = list.filter((f) => f.stops === 0);
+  const cheapest = Math.min(...d.flights.map((f) => f.price));
+  const fastest = Math.min(...d.flights.map((f) => f.duration || 1e9));
+  if (S.sort === "price") list.sort((a, b) => a.price - b.price);
+  if (S.sort === "fast") list.sort((a, b) => (a.duration || 1e9) - (b.duration || 1e9));
+  if (S.sort === "early") list.sort((a, b) => (a.segments[0].dep || "").localeCompare(b.segments[0].dep || ""));
+  root.innerHTML = returnsHeader(sel.outbound) + `
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="排序">
+        ${[["best", "推薦"], ["price", "最便宜"], ["fast", "最快"], ["early", "最早出發"]].map(([k, v]) => `<button data-sort="${k}" aria-pressed="${S.sort === k}">${v}</button>`).join("")}
+      </div>
+      <span class="sub">${list.length} 個回程航班</span>
+    </div>
+    <div class="stack" id="retList">
+      ${list.length ? list.slice(0, S.shown).map((f) => flightCard(f, d, { cheapest, fastest, isRT: true, mode: "return" })).join("") : `<div class="empty"><b>沒有符合條件的回程</b>${S.directOnly ? "取消「只看直飛」看看轉機選項。" : "換一班去程試試看。"}</div>`}
+    </div>
+    ${list.length > S.shown ? `<div class="more-wrap"><button class="btn" id="showMore">再顯示 ${Math.min(12, list.length - S.shown)} 個航班</button></div>` : ""}
+    <div class="more-wrap"><a class="btn ghost" href="${esc(d.bookingUrl || S.data.bookingUrl)}" target="_blank" rel="noopener">在 Google 航班訂這組 ↗</a></div>`;
+  bindReturnsHeader();
+  root.querySelectorAll("[data-sort]").forEach((b) => (b.onclick = () => { S.sort = b.dataset.sort; renderReturns(); }));
+  $("#showMore") && ($("#showMore").onclick = () => { S.shown += 12; renderReturns(); });
+  $("#retList").onclick = (e) => {
+    const b = e.target.closest("[data-track-ret]"); if (!b) return;
+    startTrack(sel.outbound, d.flights.find((f) => f.key === b.dataset.trackRet));
   };
 }
 
@@ -641,11 +714,15 @@ function flightCard(f, d, ctx) {
       </div>
       <div class="f-price">
         ${tags.length ? `<div class="tags">${tags.join("")}</div>` : ""}
-        <div class="pwrap"><span class="amt">${money(f.price, d.currency)}</span><small>${ctx.isRT ? "來回" : "單程"}總價</small></div>
-        <button class="btn" data-track="${esc(f.key)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2a4 4 0 0 0-4 4v3l-1.5 2.5h11L12 9V6a4 4 0 0 0-4-4zM6.5 13.5a1.5 1.5 0 0 0 3 0"/></svg>追蹤</button>
+        <div class="pwrap"><span class="amt">${money(f.price, d.currency)}</span><small>${ctx.mode === "out-rt" ? "來回起價" : ctx.isRT ? "來回總價" : "單程總價"}</small></div>
+        ${ctx.mode === "out-rt"
+          ? `<div style="display:flex;gap:6px"><button class="btn ghost" data-track="${esc(f.key)}" aria-label="追蹤這班去程"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2a4 4 0 0 0-4 4v3l-1.5 2.5h11L12 9V6a4 4 0 0 0-4-4zM6.5 13.5a1.5 1.5 0 0 0 3 0"/></svg></button><button class="btn primary" data-pick="${esc(f.key)}"${f.token || DEMO ? "" : " disabled"}>選這班去程</button></div>`
+          : ctx.mode === "return"
+            ? `<button class="btn" data-track-ret="${esc(f.key)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2a4 4 0 0 0-4 4v3l-1.5 2.5h11L12 9V6a4 4 0 0 0-4-4zM6.5 13.5a1.5 1.5 0 0 0 3 0"/></svg>追蹤這組來回</button>`
+            : `<button class="btn" data-track="${esc(f.key)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2a4 4 0 0 0-4 4v3l-1.5 2.5h11L12 9V6a4 4 0 0 0-4-4zM6.5 13.5a1.5 1.5 0 0 0 3 0"/></svg>追蹤</button>`}
       </div>
     </div>
-    <details class="f-more"><summary><span>航班細節${ctx.isRT ? "（去程）" : ""}</span>${eco}</summary><div class="legs">${legs}</div></details>
+    <details class="f-more"><summary><span>航班細節${ctx.mode === "return" ? "（回程）" : ctx.isRT ? "（去程）" : ""}</span>${eco}</summary><div class="legs">${legs}</div></details>
   </article>`;
 }
 
@@ -681,16 +758,17 @@ function chartSvg(points, { w = 420, h = 120, cur, target } = {}) {
 }
 
 /* ---------- 追蹤 ---------- */
-function startTrack(flight) {
+function startTrack(flight, ret) {
   const d = S.data, q = d.query;
   const isRT = !!(q.ret || q.return);
   const routePrice = d.insights.lowest;
   const html = `
     <div class="stack">
       <div class="sub">${esc(routeCode(S.from))} → ${esc(routeCode(S.to))} · ${shortDate(q.depart)}${isRT ? " – " + shortDate(q.ret || q.return) : ""} · ${esc(paxText(q))}</div>
-      ${flight ? `<label class="opt"><input type="radio" name="mode" value="flight" checked><div><b>只追蹤這班</b><small class="mono">${esc(flight.segments.map((s) => s.flightNo).join(" → "))} · ${hm(flight.segments[0].dep)} 出發 · 目前 ${money(flight.price, d.currency)}</small></div></label>` : ""}
+      ${ret ? `<label class="opt"><input type="radio" name="mode" value="combo" checked><div><b>追蹤這組來回</b><small class="mono">去 ${esc(flight.segments.map((s) => s.flightNo).join(" → "))} ${hm(flight.segments[0].dep)}<br>回 ${esc(ret.segments.map((s) => s.flightNo).join(" → "))} ${hm(ret.segments[0].dep)} · 目前 ${money(ret.price, d.currency)}</small></div></label>`
+        : flight ? `<label class="opt"><input type="radio" name="mode" value="flight" checked><div><b>只追蹤這班${isRT ? "去程" : ""}</b><small class="mono">${esc(flight.segments.map((s) => s.flightNo).join(" → "))} · ${hm(flight.segments[0].dep)} 出發 · 目前${isRT ? "來回起價" : ""} ${money(flight.price, d.currency)}</small></div></label>` : ""}
       <label class="opt"><input type="radio" name="mode" value="route" ${flight ? "" : "checked"}><div><b>追蹤這天的最低價</b><small>不管哪家航空，只要整條航線最低價下降就通知 · 目前 ${money(routePrice, d.currency)}</small></div></label>
-      <div class="field-row"><label for="target">目標價（選填）</label><div class="money-in"><span>${d.currency === "TWD" ? "NT$" : d.currency}</span><input id="target" inputmode="numeric" placeholder="例如 ${Math.round(((flight ? flight.price : routePrice) || 10000) * 0.9 / 100) * 100}"></div><div class="sub" style="margin-top:6px">只要降價就會通知；設定目標價的話，跌破目標時會特別提醒你。</div></div>
+      <div class="field-row"><label for="target">目標價（選填）</label><div class="money-in"><span>${d.currency === "TWD" ? "NT$" : d.currency}</span><input id="target" inputmode="numeric" placeholder="例如 ${Math.round((((ret || flight) ? (ret || flight).price : routePrice) || 10000) * 0.9 / 100) * 100}"></div><div class="sub" style="margin-top:6px">只要降價就會通知；設定目標價的話，跌破目標時會特別提醒你。</div></div>
       <button class="btn primary big" id="doTrack">開始追蹤</button>
     </div>`;
   openSheet("追蹤票價", html, (body) => {
@@ -699,7 +777,7 @@ function startTrack(flight) {
       const target = parseInt(($("#target", body).value || "").replace(/\D/g, ""), 10) || null;
       const btn = $("#doTrack", body); btn.disabled = true; btn.textContent = "建立中…";
       try {
-        const payload = { ...q, return: q.ret || q.return || "", flightKey: mode === "flight" ? flight.key : null, target, price: mode === "flight" ? flight.price : routePrice };
+        const payload = { ...q, return: q.ret || q.return || "", flightKey: mode !== "route" ? flight.key : null, returnKey: mode === "combo" ? ret.key : null, target, price: mode === "combo" ? ret.price : mode === "flight" ? flight.price : routePrice };
         delete payload.ret;
         const w = await api("/api/watch", { method: "POST", body: JSON.stringify(payload) });
         watches.unshift({ id: w.id, key: w.key, cache: w });
@@ -726,7 +804,7 @@ function trackDone(w, body) {
   body.innerHTML = `<div class="done stack">
     <div class="ok"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3.2 3L13 4.5"/></svg></div>
     <b style="font-size:17px">已開始追蹤</b>
-    <div class="sub">目前 ${money(w.current?.price, w.currency)}，系統每 6 小時查一次價。</div>
+    <div class="sub">目前 ${money(w.current?.price, w.currency)}，系統每天早晚各查一次價。</div>
     ${tg ? `<a class="btn tg big" href="${tg}" target="_blank" rel="noopener">用 Telegram 接收降價通知</a><div class="sub">打開後按「開始」就完成設定。</div>` : `<div class="sub">${DEMO ? "示範模式沒有連接 Telegram，部署後這裡會出現通知按鈕。" : "後端還沒設定 Telegram 機器人，暫時只能在這裡查看價格。"}</div>`}
     <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <button class="btn" id="goWatch">看我的追蹤</button>
@@ -779,7 +857,7 @@ function renderWatches() {
         <div class="wmeta">${shortDate(q.depart)}${q.ret ? " – " + shortDate(q.ret) : ""} · ${esc(paxText(q))}</div></div>
         ${w.notify ? `<span class="pill low">通知中</span>` : ""}
       </div>
-      <div class="wmeta mono">${w.flightKey ? esc(w.flightKey.replace(/\+/g, " → ")) : "整條航線最低價"}${w.target ? ` · 目標 ${money(w.target, w.currency)}` : ""}</div>
+      <div class="wmeta mono">${w.flightKey ? (w.returnKey ? "去 " : "") + esc(w.flightKey.replace(/\+/g, " → ")) + (w.returnKey ? " · 回 " + esc(w.returnKey.replace(/\+/g, " → ")) : "") : "整條航線最低價"}${w.target ? ` · 目標 ${money(w.target, w.currency)}` : ""}</div>
       <div class="wprice"><span class="amt">${money(now, w.currency)}</span><span class="delta ${dcls}">${dtxt}</span></div>
       ${chartSvg(w.history, { w: 320, h: 96, cur: w.currency, target: w.target })}
       ${w.lastError ? `<div class="notice">${esc(w.lastError)}</div>` : ""}
@@ -900,13 +978,20 @@ function demoApi(path, opts) {
       const url = new URL(path, "https://demo.local");
       const demoWatches = store.get("demo-watches", {});
       if (url.pathname === "/api/search") return resolve(demoSearch(Object.fromEntries(url.searchParams)));
+      if (url.pathname === "/api/returns") {
+        const p = Object.fromEntries(url.searchParams);
+        const r = demoSearch({ ...p, from: p.to.split(",")[0], to: p.from, depart: p.return, return: "" });
+        r.flights.forEach((f) => (f.price = Math.round(f.price * 1.75 / 10) * 10));
+        r.query = { ...p, ret: p.return };
+        return resolve(r);
+      }
       if (url.pathname === "/api/watch" && opts.method === "POST") {
         const b = JSON.parse(opts.body);
         const id = Math.random().toString(36).slice(2, 12).padEnd(10, "0");
         const r = rng(id), start = b.price || 10000;
         const history = Array.from({ length: 9 }, (_, i) => ({ t: Date.now() - (8 - i) * 6 * 3600000, p: Math.round(start * (1.08 - i * 0.01 + (r() - 0.5) * 0.06) / 10) * 10 }));
         history[8].p = start;
-        const w = { id, key: "demo", query: { from: b.from, to: b.to, depart: b.depart, ret: b.return, adults: +b.adults, children: +b.children, cabin: +b.cabin }, flightKey: b.flightKey, target: b.target, history, current: { price: start }, checkedAt: Date.now(), currency: "TWD", notify: false, bookingUrl: "https://www.google.com/travel/flights?hl=zh-TW" };
+        const w = { id, key: "demo", query: { from: b.from, to: b.to, depart: b.depart, ret: b.return, adults: +b.adults, children: +b.children, cabin: +b.cabin }, flightKey: b.flightKey, returnKey: b.returnKey, target: b.target, history, current: { price: start }, checkedAt: Date.now(), currency: "TWD", notify: false, bookingUrl: "https://www.google.com/travel/flights?hl=zh-TW" };
         demoWatches[id] = w; store.set("demo-watches", demoWatches);
         return resolve(w);
       }

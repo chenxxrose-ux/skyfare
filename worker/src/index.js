@@ -17,7 +17,7 @@
  *   變數         TELEGRAM_BOT（機器人帳號，不含 @）、SITE_URL、ALLOWED_ORIGIN、CURRENCY、MAX_WATCHES
  */
 
-const SEARCH_TTL = 20 * 60; // 秒
+const SEARCH_TTL = 60 * 60; // 秒，同樣條件 1 小時內共用結果，省免費額度
 const CHECK_COOLDOWN = 10 * 60 * 1000;
 const HISTORY_CAP = 240;
 
@@ -55,6 +55,14 @@ export default {
       if (url.pathname === "/api/search" && request.method === "GET") {
         const q = parseQuery(Object.fromEntries(url.searchParams));
         const data = await searchFlights(q, env, { useCache: true });
+        return json(data, 200, cors);
+      }
+      if (url.pathname === "/api/returns" && request.method === "GET") {
+        const params = Object.fromEntries(url.searchParams);
+        const q = parseQuery(params);
+        if (!q.ret) throw fail(400, "單程票沒有回程可以選。");
+        if (!params.token) throw fail(400, "請先選擇去程航班。");
+        const data = await searchFlights(q, env, { useCache: true, departureToken: params.token });
         return json(data, 200, cors);
       }
       if (url.pathname === "/api/watch" && request.method === "POST") {
@@ -178,9 +186,9 @@ const queryKey = (q) =>
 
 /* ---------- SerpApi Google Flights ---------- */
 
-async function searchFlights(q, env, { useCache }) {
+async function searchFlights(q, env, { useCache, departureToken } = {}) {
   if (!env.SERPAPI_KEY) throw fail(500, "後端還沒設定 SERPAPI_KEY。");
-  const cacheKey = "s:" + queryKey(q);
+  const cacheKey = "s:" + queryKey(q) + (departureToken ? "|r:" + (await sha(departureToken)) : "");
   if (useCache) {
     const hit = await env.SKYFARE.get(cacheKey, "json");
     if (hit) return { ...hit, cached: true };
@@ -202,13 +210,14 @@ async function searchFlights(q, env, { useCache }) {
   });
   if (q.ret) params.set("return_date", q.ret);
   if (q.stops) params.set("stops", String(q.stops));
+  if (departureToken) params.set("departure_token", departureToken);
 
   const res = await fetch("https://serpapi.com/search.json?" + params.toString());
   const raw = await res.json().catch(() => ({}));
   if (!res.ok || raw.error) {
     const msg = String(raw.error || res.status);
     if (/hasn't returned any results/i.test(msg)) {
-      const empty = normalize({}, q, env);
+      const empty = normalize({}, q, env, !!departureToken);
       await env.SKYFARE.put(cacheKey, JSON.stringify(empty), { expirationTtl: SEARCH_TTL });
       return empty;
     }
@@ -216,12 +225,17 @@ async function searchFlights(q, env, { useCache }) {
     throw fail(502, "票價來源暫時沒有回應，請稍後再試。");
   }
 
-  const data = normalize(raw, q, env);
+  const data = normalize(raw, q, env, !!departureToken);
   await env.SKYFARE.put(cacheKey, JSON.stringify(data), { expirationTtl: SEARCH_TTL });
   return data;
 }
 
-function normalize(raw, q, env) {
+async function sha(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf).slice(0, 12), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function normalize(raw, q, env, isReturn = false) {
   const list = [
     ...(raw.best_flights || []).map((f) => ({ f, best: true })),
     ...(raw.other_flights || []).map((f) => ({ f, best: false })),
@@ -256,12 +270,14 @@ function normalize(raw, q, env) {
           ? { grams: f.carbon_emissions.this_flight, typical: f.carbon_emissions.typical_for_this_route, diff: f.carbon_emissions.difference_percent }
           : null,
         logo: f.airline_logo || segments[0].logo,
+        token: f.departure_token || null,
       };
     });
 
   const pi = raw.price_insights || {};
   return {
     query: { ...q },
+    leg: isReturn ? "return" : "outbound",
     currency: currency(env),
     insights: {
       lowest: pi.lowest_price ?? (flights.length ? Math.min(...flights.map((f) => f.price)) : null),
@@ -313,6 +329,7 @@ async function createWatch(body, env) {
     key: randomId(24),
     query: q,
     flightKey: body.flightKey ? String(body.flightKey).slice(0, 80) : null,
+    returnKey: body.returnKey && body.flightKey ? String(body.returnKey).slice(0, 80) : null,
     label: body.label ? String(body.label).slice(0, 80) : null,
     target: body.target ? Math.max(1, parseInt(body.target, 10) || 0) || null : null,
     createdAt: Date.now(),
@@ -338,13 +355,25 @@ async function checkWatch(env, w, { save = true, initialPrice } = {}) {
     return w;
   }
 
-  let match = null;
+  let match = null, retMatch = null, retError = null;
   if (w.flightKey) match = data.flights.find((f) => f.key === w.flightKey) || null;
+  if (w.returnKey && match) {
+    if (!match.token) retError = "暫時查不到回程票價。";
+    else {
+      try {
+        const rd = await searchFlights(w.query, env, { useCache: true, departureToken: match.token });
+        retMatch = rd.flights.find((f) => f.key === w.returnKey) || null;
+        if (!retMatch) retError = "選的回程航班暫時查不到可售票價，可能已售完或改了時間。";
+      } catch (err) {
+        retError = err.publicMessage || "回程查價失敗";
+      }
+    }
+  }
   const lowest = data.insights.lowest;
-  const price = w.flightKey ? (match ? match.price : null) : lowest;
+  const price = w.returnKey ? (retMatch ? retMatch.price : null) : w.flightKey ? (match ? match.price : null) : lowest;
 
-  w.lastError = w.flightKey && !match ? "這班航班暫時查不到可售票價，可能已售完或改了時間。" : null;
-  w.current = { price, lowest, level: data.insights.level, typical: data.insights.typical, flight: match || data.flights[0] || null };
+  w.lastError = w.flightKey && !match ? "這班航班暫時查不到可售票價，可能已售完或改了時間。" : retError;
+  w.current = { price, lowest, level: data.insights.level, typical: data.insights.typical, flight: match || data.flights[0] || null, returnFlight: retMatch };
   w.bookingUrl = data.bookingUrl;
   w.checkedAt = Date.now();
 
@@ -424,7 +453,7 @@ async function notifyAll(env, w, reason, before, now) {
   const lines = [
     `<b>${head}</b>`,
     `${routeLabel(w)}　${q.depart}${q.ret ? " – " + q.ret : ""}`,
-    w.flightKey ? `航班 ${w.flightKey.replace(/\+/g, " / ")}` : "這條航線的最低價",
+    w.flightKey ? `去程 ${w.flightKey.replace(/\+/g, " / ")}${w.returnKey ? `\n回程 ${w.returnKey.replace(/\+/g, " / ")}` : ""}` : "這條航線的最低價",
     before != null ? `${money(env, before)} → <b>${money(env, now)}</b>` : `現在 <b>${money(env, now)}</b>`,
   ];
   const buttons = [];
