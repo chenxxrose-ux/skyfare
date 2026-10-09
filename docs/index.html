@@ -958,7 +958,7 @@ async function loadOthers() {
         return `<div class="wcard"><div class="wroute">${esc(routeCode(q.from))}<span>${q.ret ? "⇄" : "→"}</span>${esc(routeCode(q.to))}</div>
           <div class="wmeta">${shortDate(q.depart)}${q.ret ? " – " + shortDate(q.ret) : ""} · ${esc(paxText(q))}</div>
           <div class="wmeta mono">${w.flightKey ? (w.returnKey ? "去 " : "") + esc(w.flightKey.replace(/\+/g, " → ")) + (w.returnKey ? " · 回 " + esc(w.returnKey.replace(/\+/g, " → ")) : "") : "整條航線最低價"}</div>
-          <div class="wprice"><span class="amt" style="font-size:22px">${money(w.price)}</span></div>
+          <div class="wprice"><span class="amt" style="font-size:22px">${money(w.price)}</span>${perPerson(w.price, q) ? `<span class="wmeta num">${perPerson(w.price, q)}</span>` : ""}</div>
           <div class="wactions"><button class="btn primary" data-adopt="${w.id}">加到這台裝置</button></div></div>`;
       }).join("")}</div>`;
     root.onclick = (e) => {
@@ -995,6 +995,7 @@ function renderWatches() {
       </div>
       <div class="wmeta mono">${w.flightKey ? (w.returnKey ? "去 " : "") + esc(w.flightKey.replace(/\+/g, " → ")) + (w.returnKey ? " · 回 " + esc(w.returnKey.replace(/\+/g, " → ")) : "") : "整條航線最低價"}${w.target ? ` · 目標 ${money(w.target, w.currency)}` : ""}</div>
       <div class="wprice"><span class="amt">${money(now, w.currency)}</span><span class="delta ${dcls}">${dtxt}</span></div>
+      ${paxOf(q) > 1 && now != null ? `<div class="num" style="font-size:15px;margin-top:-6px"><b>${perPerson(now, q, w.currency)}</b><span class="wmeta">　${paxOf(q)} 人總價${w.target ? `・目標每人約 ${money(w.target / paxOf(q), w.currency)}` : ""}</span></div>` : ""}
       ${chartSvg(w.history, { w: 320, h: 96, cur: w.currency, target: w.target })}
       ${w.lastError ? `<div class="notice">${esc(w.lastError)}</div>` : ""}
       <div class="wmeta">${ago(w.checkedAt)}</div>
