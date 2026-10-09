@@ -32,6 +32,23 @@ export default {
       if (url.pathname === "/telegram" && request.method === "POST") {
         return await handleTelegram(request, env);
       }
+      if (url.pathname === "/setup-telegram") {
+        if (!env.TELEGRAM_TOKEN) return json({ ok: false, message: "後端還沒有 TELEGRAM_TOKEN。" }, 500, cors);
+        const me = await tg(env, "getMe", {});
+        if (!me?.ok) {
+          return json({ ok: false, message: "Telegram 不認得這個 token，請到 GitHub 重新設定 TELEGRAM_TOKEN（從 BotFather 完整複製）。" }, 400, cors);
+        }
+        const hook = await tg(env, "setWebhook", {
+          url: `${url.origin}/telegram`,
+          secret_token: env.TELEGRAM_SECRET || undefined,
+          allowed_updates: ["message"],
+        });
+        return json({
+          ok: !!hook?.ok,
+          bot: "@" + me.result.username,
+          message: hook?.ok ? "設定完成！到 Telegram 傳訊息給機器人試試看。" : "設定失敗：" + (hook?.description || "未知錯誤"),
+        }, hook?.ok ? 200 : 500, cors);
+      }
       if (url.pathname === "/api/config") {
         return json({ telegramBot: env.TELEGRAM_BOT || null, currency: currency(env) }, 200, cors);
       }
