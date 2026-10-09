@@ -68,13 +68,7 @@ repo → Settings → Pages → Source 選 **Deploy from a branch**，Branch 選
 
 ### 6. 連接 Telegram 機器人
 
-在瀏覽器打開下面這個網址一次（把三個地方換成你的值）：
-
-```
-https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=<Worker網址>/telegram&secret_token=<TELEGRAM_SECRET>
-```
-
-看到 `"ok":true` 就完成了。之後在網頁追蹤航班，按「用 Telegram 接收降價通知」，在 Telegram 按「開始」即可。
+在瀏覽器打開 `<Worker網址>/setup-telegram`，看到「設定完成」就好了。之後在網頁追蹤航班，按「用 Telegram 接收降價通知」，在 Telegram 按「開始」即可。
 
 ## 查詢次數
 
