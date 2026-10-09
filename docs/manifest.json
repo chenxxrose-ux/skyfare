@@ -1,0 +1,15 @@
+{
+  "name": "航跡 Skyfare",
+  "short_name": "航跡",
+  "description": "即時機票比價與降價通知",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0F1722",
+  "theme_color": "#0F1722",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

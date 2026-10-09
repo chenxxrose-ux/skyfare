@@ -65,12 +65,40 @@ export default {
         const data = await searchFlights(q, env, { useCache: true, departureToken: params.token });
         return json(data, 200, cors);
       }
+      if (url.pathname === "/api/booking" && request.method === "GET") {
+        const params = Object.fromEntries(url.searchParams);
+        const q = parseQuery(params);
+        if (!params.token) throw fail(400, "這個航班沒有訂票資訊。");
+        return json(await bookingOptions(q, env, params.token), 200, cors);
+      }
+      if (url.pathname === "/api/push/key") {
+        const v = await getVapid(env);
+        return json({ publicKey: v.pub }, 200, cors);
+      }
       if (url.pathname === "/api/watch" && request.method === "POST") {
         const body = await request.json();
         return json(await createWatch(body, env), 201, cors);
       }
-      const m = url.pathname.match(/^\/api\/watch\/([a-z0-9]{10})(\/check)?$/);
-      if (m) {
+      const m = url.pathname.match(/^\/api\/watch\/([a-z0-9]{10})(\/check|\/push)?$/);
+      if (m && m[2] === "/push" && request.method === "POST") {
+        const w = await getWatch(env, m[1]);
+        if (!w) return json({ error: "找不到這個追蹤。" }, 404, cors);
+        const { subscription } = await request.json();
+        if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+          throw fail(400, "這個瀏覽器的通知資訊不完整，請重新開啟通知。");
+        }
+        const sub = { endpoint: String(subscription.endpoint), keys: { p256dh: String(subscription.keys.p256dh), auth: String(subscription.keys.auth) } };
+        w.subs = (w.subs || []).filter((s) => s.endpoint !== sub.endpoint).concat(sub).slice(-10);
+        await putWatch(env, w);
+        const status = await sendPush(env, sub, {
+          title: "✅ 已開啟降價通知",
+          body: `${routeLabel(w)} ${w.query.depart}，降價時會通知你。`,
+          url: watchUrl(env, w) || "./",
+          tag: "w-" + w.id,
+        }).catch(() => 0);
+        return json({ ...publicWatch(w), pushStatus: status }, 200, cors);
+      }
+      if (m && m[2] !== "/push") {
         const id = m[1];
         if (request.method === "GET" && !m[2]) {
           const w = await getWatch(env, id);
@@ -273,6 +301,7 @@ function normalize(raw, q, env, isReturn = false) {
           : null,
         logo: f.airline_logo || segments[0].logo,
         token: f.departure_token || null,
+        bookingToken: f.booking_token || null,
       };
     });
 
@@ -316,8 +345,8 @@ async function putWatch(env, w) {
 }
 
 function publicWatch(w) {
-  const { key, chats, ...rest } = w;
-  return { ...rest, notify: (chats || []).length > 0 };
+  const { key, chats, subs, ...rest } = w;
+  return { ...rest, notify: (chats || []).length + (subs || []).length > 0 };
 }
 
 async function createWatch(body, env) {
@@ -419,7 +448,7 @@ async function runChecks(env) {
 }
 
 function shouldNotify(w, before, now) {
-  if (!w.chats?.length || now == null) return null;
+  if ((!w.chats?.length && !w.subs?.length) || now == null) return null;
   const lastP = w.lastNotified?.p ?? before;
   if (w.target && now <= w.target && (lastP == null || lastP > w.target)) return "target";
   if (lastP != null && now < lastP) return "drop";
@@ -462,7 +491,14 @@ async function notifyAll(env, w, reason, before, now) {
   if (w.bookingUrl) buttons.push({ text: "去 Google 航班訂票", url: w.bookingUrl });
   const site = watchUrl(env, w);
   if (site) buttons.push({ text: "看價格走勢", url: site });
-  for (const chat of w.chats) {
+  const plain = `${routeLabel(w)} ${q.depart}${q.ret ? "–" + q.ret.slice(5) : ""}\n${before != null ? money(env, before) + " → " : "現在 "}${money(env, now)}`;
+  const alive = [];
+  for (const sub of w.subs || []) {
+    const status = await sendPush(env, sub, { title: head, body: plain, url: site || w.bookingUrl || "./", tag: "w-" + w.id }).catch(() => 0);
+    if (status !== 404 && status !== 410) alive.push(sub); // 404/410 代表使用者已取消通知
+  }
+  w.subs = alive;
+  for (const chat of w.chats || []) {
     await tg(env, "sendMessage", {
       chat_id: chat,
       text: lines.join("\n"),
@@ -527,4 +563,153 @@ async function handleTelegram(request, env) {
     });
   }
   return new Response("ok");
+}
+
+/* ---------- 訂票比價 ---------- */
+
+async function bookingOptions(q, env, token) {
+  if (!env.SERPAPI_KEY) throw fail(500, "後端還沒設定 SERPAPI_KEY。");
+  const cacheKey = "b:" + (await sha(token));
+  const hit = await env.SKYFARE.get(cacheKey, "json");
+  if (hit) return { ...hit, cached: true };
+
+  const params = new URLSearchParams({
+    engine: "google_flights",
+    departure_id: q.from,
+    arrival_id: q.to,
+    outbound_date: q.depart,
+    type: q.ret ? "1" : "2",
+    adults: String(q.adults),
+    children: String(q.children),
+    travel_class: String(q.cabin),
+    currency: currency(env),
+    hl: "zh-TW",
+    gl: "tw",
+    booking_token: token,
+    api_key: env.SERPAPI_KEY,
+  });
+  if (q.ret) params.set("return_date", q.ret);
+  const res = await fetch("https://serpapi.com/search.json?" + params.toString());
+  const raw = await res.json().catch(() => ({}));
+  if (!res.ok || raw.error) {
+    const msg = String(raw.error || res.status);
+    if (/run out of searches|plan/i.test(msg)) throw fail(503, "這個月的免費查詢次數用完了，下個月會重置。");
+    throw fail(502, "暫時查不到訂票選項，請稍後再試。");
+  }
+
+  const leg = (x, label) =>
+    x && {
+      label,
+      seller: x.book_with,
+      price: x.price,
+      logos: x.airline_logos || [],
+      url: x.booking_request?.url || null,
+      post: x.booking_request?.post_data || null,
+      phone: x.booking_phone || null,
+    };
+  const options = (raw.booking_options || [])
+    .map((o) => {
+      if (o.together) {
+        const t = leg(o.together, null);
+        return { seller: t.seller, price: t.price, airline: !!o.together.airline, separate: false, legs: [t] };
+      }
+      const d = leg(o.departing, "去程"), r = leg(o.returning, "回程");
+      const legs = [d, r].filter(Boolean);
+      if (!legs.length) return null;
+      return {
+        seller: legs.map((l) => l.seller).join(" ＋ "),
+        price: legs.every((l) => typeof l.price === "number") ? legs.reduce((a, l) => a + l.price, 0) : null,
+        separate: true,
+        legs,
+      };
+    })
+    .filter((o) => o && typeof o.price === "number")
+    .sort((a, b) => a.price - b.price);
+
+  const data = { options, currency: currency(env), bookingUrl: raw.search_metadata?.google_flights_url || googleFlightsUrl(q), fetchedAt: Date.now() };
+  await env.SKYFARE.put(cacheKey, JSON.stringify(data), { expirationTtl: SEARCH_TTL });
+  return data;
+}
+
+/* ---------- 手機推播（Web Push，金鑰自動產生並存在 KV） ---------- */
+
+const te = new TextEncoder();
+const b64u = {
+  enc(buf) {
+    let s = "";
+    for (const x of new Uint8Array(buf)) s += String.fromCharCode(x);
+    return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  },
+  dec(str) {
+    str = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (str.length % 4) str += "=";
+    return Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+  },
+};
+function concat(...arrs) {
+  const out = new Uint8Array(arrs.reduce((n, a) => n + a.length, 0));
+  let i = 0;
+  for (const a of arrs) { out.set(a, i); i += a.length; }
+  return out;
+}
+
+async function getVapid(env) {
+  let v = await env.SKYFARE.get("vapid", "json");
+  if (!v) {
+    const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+    v = { priv: await crypto.subtle.exportKey("jwk", kp.privateKey), pub: b64u.enc(await crypto.subtle.exportKey("raw", kp.publicKey)) };
+    await env.SKYFARE.put("vapid", JSON.stringify(v));
+  }
+  return v;
+}
+
+async function vapidHeader(env, endpoint) {
+  const v = await getVapid(env);
+  const head = b64u.enc(te.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const body = b64u.enc(te.encode(JSON.stringify({
+    aud: new URL(endpoint).origin,
+    exp: Math.floor(Date.now() / 1000) + 12 * 3600,
+    sub: env.SITE_URL || "https://github.com",
+  })));
+  const key = await crypto.subtle.importKey("jwk", v.priv, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, te.encode(head + "." + body));
+  return `vapid t=${head}.${body}.${b64u.enc(sig)}, k=${v.pub}`;
+}
+
+async function hkdf(salt, ikm, info, len) {
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, len * 8));
+}
+
+// RFC 8291 aes128gcm 加密
+async function encryptPush(sub, text) {
+  const uaPub = b64u.dec(sub.keys.p256dh);
+  const auth = b64u.dec(sub.keys.auth);
+  const as = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", as.publicKey));
+  const uaKey = await crypto.subtle.importKey("raw", uaPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, as.privateKey, 256));
+  const ikm = await hkdf(auth, shared, concat(te.encode("WebPush: info\0"), uaPub, asPub), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await hkdf(salt, ikm, te.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, ikm, te.encode("Content-Encoding: nonce\0"), 12);
+  const key = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, concat(te.encode(text), new Uint8Array([2]))));
+  return concat(salt, new Uint8Array([0, 0, 0x10, 0]), new Uint8Array([asPub.length]), asPub, ct);
+}
+
+async function sendPush(env, sub, data) {
+  const body = await encryptPush(sub, JSON.stringify(data));
+  const res = await fetch(sub.endpoint, {
+    method: "POST",
+    headers: {
+      "content-encoding": "aes128gcm",
+      "content-type": "application/octet-stream",
+      ttl: "86400",
+      urgency: "high",
+      authorization: await vapidHeader(env, sub.endpoint),
+    },
+    body,
+  });
+  return res.status;
 }
