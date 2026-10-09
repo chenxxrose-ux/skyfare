@@ -1,7 +1,7 @@
 name = "skyfare-api"
 main = "src/index.js"
 account_id = "ce5a5f9969a44d1d1fa956289e7641dc"
-compatibility_date = "2026-06-01"
+compatibility_date = "2025-09-01"
 
 # 每 6 小時檢查一次所有追蹤（台灣時間 2、8、14、20 點）
 # 追蹤筆數 × 每天 4 次 = 每天用掉的查詢次數，免費額度不夠時可以改成 "0 */12 * * *"

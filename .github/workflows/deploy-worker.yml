@@ -16,6 +16,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: worker
+          wranglerVersion: "4"
           secrets: |
             SERPAPI_KEY
             TELEGRAM_TOKEN
