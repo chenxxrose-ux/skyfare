@@ -46,7 +46,6 @@ repo → Settings → Secrets and variables → Actions → New repository secre
 | 名稱 | 內容 |
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API Token |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
 | `SERPAPI_KEY` | SerpApi API Key |
 | `TELEGRAM_TOKEN` | Telegram Bot Token |
 | `TELEGRAM_SECRET` | 自己隨便打一串英數字（20 字以上），用來驗證 Telegram 的請求 |
