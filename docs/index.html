@@ -42,6 +42,7 @@
   --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --r: 14px;
+  --weekend: #2F6BDB;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -49,6 +50,7 @@
     --accent: #FF7A33; --accent-ink: #1A0B02; --accent-soft: #3A2114;
     --good: #4CC28E; --good-soft: #13301F; --warn: #E2A84A; --warn-soft: #33270F; --bad: #F07164; --bad-soft: #3A1A17;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+    --weekend: #8AB0FF;
     color-scheme: dark;
   }
 }
@@ -57,6 +59,7 @@
   --accent: #FF7A33; --accent-ink: #1A0B02; --accent-soft: #3A2114;
   --good: #4CC28E; --good-soft: #13301F; --warn: #E2A84A; --warn-soft: #33270F; --bad: #F07164; --bad-soft: #3A1A17;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+  --weekend: #8AB0FF;
   color-scheme: dark;
 }
 
@@ -276,36 +279,42 @@ button { cursor: pointer; }
 .cal-top { padding: 12px 16px 0; border-bottom: 1px solid var(--line); }
 .cal-top .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .cal-top h2 { font-size: 17px; margin: 0; }
-.cal-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 10px 0 6px; }
-.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.lg-dot { width: 7px; height: 7px; border-radius: 50%; }
-.lg-box { width: 14px; height: 10px; border-radius: 3px; }
+.cal-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 12px 0 2px; }
+.cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cal-hint { font-size: 11px; color: var(--muted); opacity: .8; padding-bottom: 6px; }
+.lg-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.lg-bar { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 .cal-wk, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.cal-wk { padding: 6px 0 8px; font-size: 13px; color: var(--muted); text-align: center; }
-.cal-wk .we, .cal-day.we { color: #2F6BDB; }
+.cal-wk { padding: 8px 0; font-size: 12px; color: var(--muted); text-align: center; letter-spacing: .05em; }
+.cal-wk .we, .cal-day.we { color: var(--weekend); }
 .cal-body { flex: 1; overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
-.cal-month { padding-top: 18px; }
-.cal-month h3 { text-align: center; font-size: 16px; margin: 0 0 8px; font-family: var(--font-display); }
-.cal-day { position: relative; border: 0; background: none; height: 46px; margin: 2px 0; font-size: 16px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; color: var(--ink); }
-.cal-day small { font-size: 9px; line-height: 1; margin-top: 2px; max-width: 100%; overflow: hidden; white-space: nowrap; color: var(--bad); }
+.cal-month { padding-top: 22px; }
+.cal-month h3 { font-size: 15px; margin: 0 0 10px 4px; font-family: var(--font-display); font-weight: 700; letter-spacing: .01em; }
+.cal-day { position: relative; border: 0; background: none; height: 50px; margin: 2px 0; font-size: 16px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; color: var(--ink); border-radius: 12px; }
+.cal-day small { font-size: 9px; line-height: 1; margin-top: 3px; max-width: 100%; overflow: hidden; white-space: nowrap; color: color-mix(in srgb, var(--bad) 85%, var(--muted)); }
 .cal-day.hol { color: var(--bad); }
-.cal-day.peak { background: color-mix(in srgb, var(--bad) 11%, transparent); }
-.cal-day.low { background: color-mix(in srgb, var(--good) 13%, transparent); }
-.cal-day.past { color: var(--line); pointer-events: none; background: none; }
-.cal-day.in { background: var(--accent-soft); border-radius: 0; }
-.cal-day.sel { background: var(--accent); color: var(--accent-ink); border-radius: 10px; }
-.cal-day.sel small { color: var(--accent-ink); }
-.cal-day .dots { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px; }
+.cal-day.peak::after, .cal-day.low::after { content: ""; position: absolute; left: 34%; right: 34%; bottom: 5px; height: 3px; border-radius: 2px; }
+.cal-day.peak::after { background: color-mix(in srgb, var(--bad) 70%, transparent); }
+.cal-day.low::after { background: color-mix(in srgb, var(--good) 75%, transparent); }
+.cal-day.past { color: color-mix(in srgb, var(--muted) 45%, transparent); pointer-events: none; }
+.cal-day.past::after { display: none; }
+.cal-day.in { background: color-mix(in srgb, var(--ink) 7%, transparent); border-radius: 0; }
+.cal-day.sel { background: var(--accent); color: var(--accent-ink); }
+.cal-day.sel small { color: var(--accent-ink); opacity: .85; }
+.cal-day.sel::after { display: none; }
+.cal-day .dots { position: absolute; top: 6px; right: 7px; display: flex; gap: 2px; }
 .cal-day .dots i { width: 5px; height: 5px; border-radius: 50%; }
-.d-tw { background: var(--bad); } .d-dest { background: #2F6BDB; }
-.cal-notes { list-style: none; margin: 10px 0 0; padding: 10px 0 4px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
-.cal-notes li { display: flex; gap: 8px; align-items: baseline; }
-.cal-notes .k { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 74px; flex: none; }
-.cal-notes .t-peak { color: var(--bad); } .cal-notes .t-low { color: var(--good); }
-.cal-foot { border-top: 1px solid var(--line); padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: var(--surface); }
-.cal-note { font-size: 12px; color: var(--warn); background: var(--warn-soft); margin: -10px -16px 10px; padding: 8px 16px; }
-.cal-pick { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.cal-pick button { border: 0; background: none; text-align: left; padding: 6px 0; font-size: 18px; font-weight: 700; font-family: var(--font-display); border-bottom: 2px solid transparent; }
+.cal-day.sel .dots i { background: var(--accent-ink); }
+.d-tw { background: var(--bad); } .d-dest { background: var(--weekend); }
+.cal-notes { list-style: none; margin: 12px 4px 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 7px; font-size: 13px; color: var(--ink); }
+.cal-notes li { display: flex; gap: 10px; align-items: baseline; }
+.cal-notes .k { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 70px; flex: none; font-size: 12px; }
+.cal-notes .chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; margin-right: 6px; white-space: nowrap; }
+.chip.peak { background: var(--bad-soft); color: var(--bad); }
+.chip.low { background: var(--good-soft); color: var(--good); }
+.cal-foot { border-top: 1px solid var(--line); padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: var(--surface); }
+.cal-pick { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cal-pick button { border: 0; background: none; text-align: left; padding: 4px 0 6px; font-size: 18px; font-weight: 700; font-family: var(--font-display); border-bottom: 2px solid transparent; }
 .cal-pick button small { display: block; font-size: 12px; color: var(--muted); font-weight: 400; font-family: var(--font-body); }
 .cal-pick button.on { border-bottom-color: var(--accent); }
 .cal-pick button.r { text-align: right; }
@@ -591,12 +600,12 @@ async function openCalendar(focus = "dep") {
     <div class="cal-top">
       <div class="row"><button class="x" id="calX" aria-label="關閉">×</button><h2>選擇日期</h2>
         <div class="seg"><button type="button" id="calRT" aria-pressed="${!ow()}">來回</button><button type="button" id="calOW" aria-pressed="${ow()}">單程</button></div></div>
-      <div class="cal-legend"><span><i class="lg-dot d-tw"></i>台灣假日</span>${destName ? `<span><i class="lg-dot d-dest"></i>${esc(destName)}假日</span>` : ""}<span><i class="lg-box" style="background:color-mix(in srgb,var(--bad) 18%,transparent)"></i>旺季</span><span><i class="lg-box" style="background:color-mix(in srgb,var(--good) 20%,transparent)"></i>淡季</span></div>
+      <div class="cal-legend"><span><i class="lg-dot d-tw"></i>台灣假日</span>${destName ? `<span><i class="lg-dot d-dest"></i>${esc(destName)}假日</span>` : ""}<span><i class="lg-bar" style="background:var(--bad)"></i>旺季</span><span><i class="lg-bar" style="background:var(--good)"></i>淡季</span></div>
+      <div class="cal-hint">淡旺季依連假與當地季節推估，旺季機票通常較貴，實際以搜尋票價為準</div>
       <div class="cal-wk">${"日一二三四五六".split("").map((w, i) => `<span class="${i === 0 || i === 6 ? "we" : ""}">${w}</span>`).join("")}</div>
     </div>
     <div class="cal-body" id="calBody"></div>
     <div class="cal-foot">
-      <div class="cal-note">淡旺季是依連假、寒暑假和當地季節推估，實際票價以搜尋結果為準。</div>
       <div class="cal-pick"><button id="pkDep"></button><button id="pkRet" class="r"></button></div>
       <button class="btn primary big" id="calOK" style="width:100%">確認</button>
     </div>
@@ -634,17 +643,17 @@ async function openCalendar(focus = "dep") {
       for (const cc of ccs) for (const b of (H[cc + y] || { breaks: [] }).breaks) {
         if (b.end.slice(0, 7) < `${y}-${String(mo + 1).padStart(2, "0")}` || b.start.slice(0, 7) > `${y}-${String(mo + 1).padStart(2, "0")}`) continue;
         const k = b.start + b.name; if (seen.has(k)) continue; seen.add(k);
-        ranges.push({ s: b.start, e: b.end, t: `${cc === "TW" ? "" : COUNTRY_NAME[cc]}${b.name}連假・旺季，機票通常較貴`, lv: "peak" });
+        ranges.push({ s: b.start, e: b.end, t: `${cc === "TW" ? "" : COUNTRY_NAME[cc] + " "}${b.name}連假`, lv: "peak" });
       }
       for (const w of SEASONS) {
         if (w.cc !== "*" && !ccs.includes(w.cc)) continue;
         const first = ymd(new Date(y, mo, 1)), last = ymd(new Date(y, mo, days));
         let hit = false; for (let dd = 1; dd <= days; dd++) if (inWindow(ymd(new Date(y, mo, dd)), w)) { hit = true; break; }
         if (!hit || seen.has(w.name + mo)) continue; seen.add(w.name + mo);
-        ranges.push({ s: `${y}-${w.from}`, e: `${y}-${w.to}`, t: `${w.name}・${w.level === "peak" ? "旺季，機票通常較貴" : "淡季，比較容易買到便宜票"}`, lv: w.level });
+        ranges.push({ s: `${y}-${w.from}`, e: `${y}-${w.to}`, t: w.name, lv: w.level });
       }
       const fmt = (x) => `${+x.slice(5, 7)}/${+x.slice(8, 10)}`;
-      const rangeHtml = ranges.map((r) => `<li><span class="k">${fmt(r.s)}–${fmt(r.e)}</span><span class="t-${r.lv}">${esc(r.t)}</span></li>`).join("");
+      const rangeHtml = ranges.map((r) => `<li><span class="k">${fmt(r.s)}–${fmt(r.e)}</span><span><span class="chip ${r.lv}">${r.lv === "peak" ? "旺季" : "淡季"}</span>${esc(r.t)}</span></li>`).join("");
       const list = [...notes.values()].join("") + rangeHtml;
       return `<section class="cal-month" id="m-${y}-${mo}"><h3>${y} 年 ${mo + 1} 月</h3><div class="cal-grid">${cells}</div>${list ? `<ul class="cal-notes">${list}</ul>` : ""}</section>`;
     }).join("");
