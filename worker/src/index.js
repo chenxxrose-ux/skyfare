@@ -790,7 +790,7 @@ const HOLIDAY_ZH = [
 const hasCJK = (t) => /[\u3040-\u30ff\u3400-\u9fff]/.test(t || "");
 
 async function holidays(env, cc, year) {
-  const key = `h:${cc}:${year}`;
+  const key = `h2:${cc}:${year}`;
   const hit = await env.SKYFARE.get(key, "json");
   if (hit) return hit;
 
@@ -828,6 +828,23 @@ async function holidays(env, cc, year) {
     }
   } catch {}
 
+  // 有過農曆新年的國家，資料來源沒列出時，用台灣的除夕日期補上
+  const LNY = { VN: [-1, 5, "農曆新年（Tết）"], KR: [-1, 1, "農曆新年"], CN: [0, 7, "春節"], HK: [1, 3, "農曆新年"], MO: [1, 3, "農曆新年"], SG: [1, 2, "農曆新年"], MY: [1, 2, "農曆新年"], ID: [1, 1, "農曆新年"], PH: [1, 1, "農曆新年"] };
+  if (cc !== "TW" && LNY[cc] && !list.some((h) => /新年|春節|tết|설날/i.test(h.name))) {
+    try {
+      const tw = await holidays(env, "TW", year);
+      const eve = tw.holidays.find((h) => h.name.includes("除夕"));
+      if (eve) {
+        const [from, to, name] = LNY[cc];
+        for (let i = from; i <= to; i++) {
+          const d = new Date(Date.parse(eve.date) + i * 86400000).toISOString().slice(0, 10);
+          off.add(d);
+          if (i === from) list.push({ date: d, name });
+        }
+      }
+    } catch {}
+  }
+
   // 連假：連續 3 天以上的休假日，且其中至少有一天是節日
   const breaks = [];
   const days = [...off].sort();
@@ -836,8 +853,10 @@ async function holidays(env, cc, year) {
     if (run.length >= 3) {
       const named = list.filter((h) => run.includes(h.date) && !/補假|補班|小年夜/.test(h.name));
       if (named.length) {
-        const main = named.find((h) => /春節|新年|除夕/.test(h.name)) || named[0];
-        breaks.push({ start: run[0], end: run[run.length - 1], name: main.name.replace(/[（(].*$/, "") });
+        const short = (n) => n.replace(/[（(].*$/, "").replace(/暨.*$/, "").replace(/^開國紀念日$/, "元旦").replace(/^農曆除夕$/, "春節");
+        const lny = named.find((h) => /春節|新年|除夕/.test(h.name));
+        const names = lny ? [short(lny.name).replace(/^春節$/, cc === "TW" ? "春節" : "農曆新年")] : Array.from(new Set(named.map((h) => short(h.name)))).slice(0, 2);
+        breaks.push({ start: run[0], end: run[run.length - 1], name: names.join("・") });
       }
     }
     run = [];
