@@ -618,10 +618,16 @@ async function openCalendar(focus = "dep") {
         const inRange = sel.dep && sel.ret && d > sel.dep && d < sel.ret;
         const twHol = info.hol.filter((h) => h.cc === "TW"), destHol = info.hol.filter((h) => h.cc !== "TW");
         const cls = ["cal-day", wd === 0 || wd === 6 ? "we" : "", info.hol.length ? "hol" : "", past ? "past" : isSel ? "sel" : inRange ? "in" : info.level || ""].join(" ");
-        const label = d === sel.dep ? (ow() ? "出發" : "去程") : d === sel.ret ? "回程" : (info.hol[0]?.name || "").slice(0, 4);
+        const label = d === sel.dep ? (ow() ? "出發" : "去程") : d === sel.ret ? "回程" : ((info.hol.find((h) => !/補假/.test(h.name)) || info.hol[0])?.name || "").replace(/[（(].*$/, "").slice(0, 4);
         cells += `<button type="button" class="${cls}" data-d="${d}" aria-label="${d}${info.hol.map((h) => " " + h.name).join("")}${info.level === "peak" ? " 旺季" : info.level === "low" ? " 淡季" : ""}">
           ${twHol.length || destHol.length ? `<span class="dots">${twHol.length ? `<i class="d-tw"></i>` : ""}${destHol.length ? `<i class="d-dest"></i>` : ""}</span>` : ""}${dd}${label ? `<small>${esc(label)}</small>` : ""}</button>`;
-        for (const h of info.hol) notes.set("h" + d + h.cc + h.name, `<li><span class="k">${mo + 1}/${dd}</span><span><i class="lg-dot ${h.cc === "TW" ? "d-tw" : "d-dest"}" style="display:inline-block;margin-right:5px"></i>${h.cc === "TW" ? "" : esc(COUNTRY_NAME[h.cc] || h.cc) + " "}${esc(h.name)}</span></li>`);
+        const byName = {};
+        for (const h of info.hol) (byName[h.name] = byName[h.name] || []).push(h.cc);
+        for (const [name, list] of Object.entries(byName)) {
+          const tw = list.includes("TW"), others = list.filter((c) => c !== "TW").map((c) => COUNTRY_NAME[c] || c);
+          const who = tw && others.length ? `（台灣、${others.join("、")}）` : tw ? "" : others.join("、") + " ";
+          notes.set("h" + d + name, `<li><span class="k">${mo + 1}/${dd}</span><span>${tw ? `<i class="lg-dot d-tw" style="display:inline-block;margin-right:3px"></i>` : ""}${others.length ? `<i class="lg-dot d-dest" style="display:inline-block;margin-right:3px"></i>` : ""} ${tw ? "" : esc(who)}${esc(name)}${tw && others.length ? esc(who) : ""}</span></li>`);
+        }
       }
       // 本月的淡旺季區間
       const seen = new Set(), ranges = [];
