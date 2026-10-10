@@ -71,6 +71,12 @@ export default {
         if (!params.token) throw fail(400, "這個航班沒有訂票資訊。");
         return json(await bookingOptions(q, env, params.token), 200, cors);
       }
+      if (url.pathname === "/api/holidays") {
+        const cc = String(url.searchParams.get("country") || "").toUpperCase();
+        const year = parseInt(url.searchParams.get("year"), 10);
+        if (!/^[A-Z]{2}$/.test(cc) || !(year >= 2020 && year <= 2040)) throw fail(400, "參數錯誤");
+        return json(await holidays(env, cc, year), 200, { ...cors, "cache-control": "public, max-age=21600" });
+      }
       if (url.pathname === "/api/push/key") {
         const v = await getVapid(env);
         return json({ publicKey: v.pub }, 200, cors);
@@ -763,4 +769,86 @@ async function sendPush(env, sub, data) {
     body,
   });
   return res.status;
+}
+
+
+/* ---------- 國定假日（台灣：政府行事曆；其他國家：Nager.Date） ---------- */
+
+const HOLIDAY_ZH = [
+  [/new year'?s? eve/i, "跨年夜"], [/new year'?s? day|^new year$/i, "元旦"],
+  [/lunar new year|chinese new year|tet|seollal|spring festival/i, "農曆新年"],
+  [/hung king/i, "雄王紀念日"], [/reunification|liberation day.*south/i, "南方解放日"],
+  [/labou?r day|workers'? day|may day/i, "勞動節"], [/national day|independence day/i, "國慶日"],
+  [/christmas eve/i, "平安夜"], [/christmas/i, "聖誕節"], [/good friday/i, "耶穌受難日"], [/easter monday/i, "復活節星期一"], [/easter/i, "復活節"],
+  [/buddha|vesak|visakha/i, "佛誕"], [/chuseok/i, "中秋節（秋夕）"], [/mid-?autumn/i, "中秋節"], [/dragon boat|tuen ng/i, "端午節"],
+  [/ching ming|qingming|tomb/i, "清明節"], [/independence movement/i, "三一節"], [/children'?s day/i, "兒童節"],
+  [/memorial day/i, "紀念日"], [/national foundation/i, "開天節"], [/hangul/i, "韓文日"],
+  [/songkran/i, "潑水節"], [/hari raya puasa|eid al-?fitr/i, "開齋節"], [/hari raya haji|eid al-?adha/i, "哈芝節"],
+  [/deepavali|diwali/i, "屠妖節"], [/thanksgiving/i, "感恩節"], [/constitution/i, "憲法紀念日"], [/king'?s birthday/i, "國王誕辰"],
+  [/queen'?s birthday/i, "王后誕辰"], [/chakri/i, "卻克里王朝紀念日"], [/coronation/i, "加冕紀念日"],
+];
+const hasCJK = (t) => /[\u3040-\u30ff\u3400-\u9fff]/.test(t || "");
+
+async function holidays(env, cc, year) {
+  const key = `h:${cc}:${year}`;
+  const hit = await env.SKYFARE.get(key, "json");
+  if (hit) return hit;
+
+  const list = [];
+  const off = new Set();
+  let ok = false;
+  try {
+    if (cc === "TW") {
+      const res = await fetch(`https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/${year}.json`);
+      if (res.ok) {
+        for (const e of await res.json()) {
+          const d = `${e.date.slice(0, 4)}-${e.date.slice(4, 6)}-${e.date.slice(6, 8)}`;
+          if (e.isHoliday) off.add(d);
+          if (e.isHoliday && e.description) list.push({ date: d, name: e.description });
+        }
+        ok = true;
+      }
+    } else {
+      const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${cc}`);
+      if (res.ok) {
+        for (const h of await res.json()) {
+          if (h.global === false) continue;
+          const zh = HOLIDAY_ZH.find(([re]) => re.test(h.name) || re.test(h.localName));
+          const name = hasCJK(h.localName) ? h.localName : zh ? zh[1] : h.name;
+          if (!list.some((x) => x.date === h.date)) list.push({ date: h.date, name });
+          off.add(h.date);
+        }
+        // 一般國家：週末也算休假
+        for (let t = Date.UTC(year, 0, 1); t < Date.UTC(year + 1, 0, 1); t += 86400000) {
+          const d = new Date(t);
+          if (d.getUTCDay() === 0 || d.getUTCDay() === 6) off.add(d.toISOString().slice(0, 10));
+        }
+        ok = true;
+      }
+    }
+  } catch {}
+
+  // 連假：連續 3 天以上的休假日，且其中至少有一天是節日
+  const breaks = [];
+  const days = [...off].sort();
+  let run = [];
+  const flush = () => {
+    if (run.length >= 3) {
+      const named = list.filter((h) => run.includes(h.date) && !/補假|補班|小年夜/.test(h.name));
+      if (named.length) {
+        const main = named.find((h) => /春節|新年|除夕/.test(h.name)) || named[0];
+        breaks.push({ start: run[0], end: run[run.length - 1], name: main.name.replace(/[（(].*$/, "") });
+      }
+    }
+    run = [];
+  };
+  for (const d of days) {
+    if (run.length && Date.parse(d) - Date.parse(run[run.length - 1]) !== 86400000) flush();
+    run.push(d);
+  }
+  flush();
+
+  const data = { country: cc, year, holidays: list.sort((a, b) => a.date.localeCompare(b.date)), breaks };
+  await env.SKYFARE.put(key, JSON.stringify(data), { expirationTtl: ok ? 30 * 86400 : 3600 });
+  return data;
 }

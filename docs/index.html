@@ -268,6 +268,47 @@ button { cursor: pointer; }
 .tg { background: #229ED9; border-color: #229ED9; color: #fff; }
 .tg:hover { filter: brightness(1.06); border-color: #229ED9; }
 
+/* calendar */
+.date-btn { border: 0; background: none; padding: 0; text-align: left; font-size: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.date-btn small { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.date-btn[disabled] { color: var(--muted); cursor: pointer; }
+.cal { position: fixed; inset: 0; z-index: 55; background: var(--surface); display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); animation: up .2s ease-out; }
+.cal-top { padding: 12px 16px 0; border-bottom: 1px solid var(--line); }
+.cal-top .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cal-top h2 { font-size: 17px; margin: 0; }
+.cal-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); padding: 10px 0 6px; }
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.lg-dot { width: 7px; height: 7px; border-radius: 50%; }
+.lg-box { width: 14px; height: 10px; border-radius: 3px; }
+.cal-wk, .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-wk { padding: 6px 0 8px; font-size: 13px; color: var(--muted); text-align: center; }
+.cal-wk .we, .cal-day.we { color: #2F6BDB; }
+.cal-body { flex: 1; overflow-y: auto; padding: 0 16px 16px; -webkit-overflow-scrolling: touch; }
+.cal-month { padding-top: 18px; }
+.cal-month h3 { text-align: center; font-size: 16px; margin: 0 0 8px; font-family: var(--font-display); }
+.cal-day { position: relative; border: 0; background: none; height: 46px; margin: 2px 0; font-size: 16px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; color: var(--ink); }
+.cal-day small { font-size: 9px; line-height: 1; margin-top: 2px; max-width: 100%; overflow: hidden; white-space: nowrap; color: var(--bad); }
+.cal-day.hol { color: var(--bad); }
+.cal-day.peak { background: color-mix(in srgb, var(--bad) 11%, transparent); }
+.cal-day.low { background: color-mix(in srgb, var(--good) 13%, transparent); }
+.cal-day.past { color: var(--line); pointer-events: none; background: none; }
+.cal-day.in { background: var(--accent-soft); border-radius: 0; }
+.cal-day.sel { background: var(--accent); color: var(--accent-ink); border-radius: 10px; }
+.cal-day.sel small { color: var(--accent-ink); }
+.cal-day .dots { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px; }
+.cal-day .dots i { width: 5px; height: 5px; border-radius: 50%; }
+.d-tw { background: var(--bad); } .d-dest { background: #2F6BDB; }
+.cal-notes { list-style: none; margin: 10px 0 0; padding: 10px 0 4px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.cal-notes li { display: flex; gap: 8px; align-items: baseline; }
+.cal-notes .k { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 74px; flex: none; }
+.cal-notes .t-peak { color: var(--bad); } .cal-notes .t-low { color: var(--good); }
+.cal-foot { border-top: 1px solid var(--line); padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: var(--surface); }
+.cal-note { font-size: 12px; color: var(--warn); background: var(--warn-soft); margin: -10px -16px 10px; padding: 8px 16px; }
+.cal-pick { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.cal-pick button { border: 0; background: none; text-align: left; padding: 6px 0; font-size: 18px; font-weight: 700; font-family: var(--font-display); border-bottom: 2px solid transparent; }
+.cal-pick button small { display: block; font-size: 12px; color: var(--muted); font-weight: 400; font-family: var(--font-body); }
+.cal-pick button.on { border-bottom-color: var(--accent); }
+.cal-pick button.r { text-align: right; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
 .foot { margin-top: 40px; font-size: 12px; color: var(--muted); text-align: center; }
 
@@ -325,8 +366,8 @@ button { cursor: pointer; }
         <button type="button" class="ap-btn to" id="toBtn"><small>抵達</small><span class="ap-code" id="toCode">TYO</span><span class="ap-name" id="toName">東京（成田、羽田）</span></button>
       </div>
       <div class="pass-fields">
-        <div class="fld"><label for="depart">去程</label><input type="date" id="depart" required></div>
-        <div class="fld"><label for="ret">回程</label><input type="date" id="ret"></div>
+        <div class="fld"><span class="lbl">去程</span><button type="button" class="date-btn" id="departBtn"></button></div>
+        <div class="fld"><span class="lbl">回程</span><button type="button" class="date-btn" id="retBtn"></button></div>
         <div class="fld pax"><span class="lbl">乘客 · 艙等</span><button type="button" class="pax-btn" id="paxBtn">1 位成人 · 經濟艙</button></div>
       </div>
       <div class="pass-foot">
@@ -457,9 +498,8 @@ function renderForm() {
   $("#toCode").textContent = t.code; $("#toName").textContent = apLabel(t);
   $("#tripRT").setAttribute("aria-pressed", S.trip === "rt");
   $("#tripOW").setAttribute("aria-pressed", S.trip === "ow");
-  const dep = $("#depart"), ret = $("#ret");
-  dep.min = plus(0); dep.value = S.depart;
-  ret.min = S.depart; ret.disabled = S.trip === "ow"; ret.value = S.trip === "ow" ? "" : S.ret;
+  $("#departBtn").innerHTML = `${shortDate(S.depart)}<small>${S.depart.slice(0, 4)} 年</small>`;
+  $("#retBtn").innerHTML = S.trip === "ow" ? `<span style="color:var(--muted)">單程</span><small>點選加回程</small>` : `${shortDate(S.ret)}<small>${S.ret.slice(0, 4)} 年・${dayDiff(S.depart, S.ret) + 1} 天</small>`;
   $("#paxBtn").textContent = paxText(S);
   $("#directOnly").checked = S.directOnly;
 }
@@ -470,13 +510,178 @@ function persist() {
 $("#tripRT").onclick = () => { S.trip = "rt"; if (S.ret < S.depart) S.ret = addDays(S.depart, 5); renderForm(); persist(); };
 $("#tripOW").onclick = () => { S.trip = "ow"; renderForm(); persist(); };
 $("#swapBtn").onclick = () => { [S.from, S.to] = [S.to, S.from]; renderForm(); persist(); };
-$("#depart").onchange = (e) => { S.depart = e.target.value; if (S.ret < S.depart) S.ret = addDays(S.depart, 5); renderForm(); persist(); };
-$("#ret").onchange = (e) => { S.ret = e.target.value; persist(); };
+$("#departBtn").onclick = () => openCalendar("dep");
+$("#retBtn").onclick = () => { if (S.trip === "ow") { S.trip = "rt"; if (S.ret < S.depart) S.ret = addDays(S.depart, 5); renderForm(); persist(); } openCalendar("ret"); };
 $("#directOnly").onchange = (e) => { S.directOnly = e.target.checked; if (S.data) renderResults(); };
 $("#fromBtn").onclick = () => pickAirport("from");
 $("#toBtn").onclick = () => pickAirport("to");
 $("#paxBtn").onclick = pickPax;
 function addDays(iso, n) { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+
+/* ---------- 日曆（假日、淡旺季） ---------- */
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayStr = () => ymd(new Date());
+const COUNTRY_CODE = { 台灣: "TW", 日本: "JP", 韓國: "KR", 香港: "HK", 澳門: "MO", 中國: "CN", 泰國: "TH", 新加坡: "SG", 馬來西亞: "MY", 越南: "VN", 菲律賓: "PH", 印尼: "ID", 澳洲: "AU", 紐西蘭: "NZ", 美國: "US", 加拿大: "CA", 英國: "GB", 法國: "FR", 德國: "DE", 荷蘭: "NL", 奧地利: "AT", 義大利: "IT", 捷克: "CZ", 土耳其: "TR" };
+const COUNTRY_NAME = Object.fromEntries(Object.entries(COUNTRY_CODE).map(([k, v]) => [v, k]));
+// 依假期與氣候推估的淡旺季（不是實際票價）
+const SEASONS = [
+  { cc: "TW", from: "07-01", to: "08-31", level: "peak", name: "台灣暑假" },
+  { cc: "TW", from: "01-20", to: "02-20", level: "peak", name: "台灣寒假" },
+  { cc: "*", from: "12-24", to: "01-02", level: "peak", name: "聖誕跨年" },
+  { cc: "JP", from: "03-20", to: "04-10", level: "peak", name: "日本櫻花季" },
+  { cc: "JP", from: "04-29", to: "05-05", level: "peak", name: "日本黃金週" },
+  { cc: "JP", from: "08-11", to: "08-16", level: "peak", name: "日本盂蘭盆節" },
+  { cc: "JP", from: "11-10", to: "11-30", level: "peak", name: "日本楓葉季" },
+  { cc: "JP", from: "12-27", to: "01-04", level: "peak", name: "日本年末年始" },
+  { cc: "JP", from: "01-06", to: "01-19", level: "low", name: "年後淡季" },
+  { cc: "JP", from: "06-01", to: "06-30", level: "low", name: "日本梅雨季" },
+  { cc: "JP", from: "09-01", to: "09-30", level: "low", name: "颱風季淡季" },
+  { cc: "KR", from: "03-28", to: "04-10", level: "peak", name: "韓國櫻花季" },
+  { cc: "KR", from: "10-15", to: "11-10", level: "peak", name: "韓國楓葉季" },
+  { cc: "KR", from: "06-20", to: "06-30", level: "low", name: "韓國梅雨季" },
+  { cc: "KR", from: "09-01", to: "09-14", level: "low", name: "暑假後淡季" },
+  { cc: "VN", from: "05-15", to: "06-30", level: "low", name: "越南雨季" },
+  { cc: "VN", from: "09-01", to: "11-15", level: "low", name: "越南雨季" },
+  { cc: "TH", from: "04-12", to: "04-16", level: "peak", name: "泰國潑水節" },
+  { cc: "TH", from: "05-15", to: "06-30", level: "low", name: "泰國雨季" },
+  { cc: "TH", from: "09-01", to: "10-31", level: "low", name: "泰國雨季" },
+  { cc: "SG", from: "05-01", to: "06-30", level: "low", name: "新加坡淡季" },
+  { cc: "PH", from: "06-15", to: "06-30", level: "low", name: "菲律賓雨季" },
+  { cc: "PH", from: "09-01", to: "10-31", level: "low", name: "菲律賓雨季" },
+  { cc: "HK", from: "05-15", to: "06-30", level: "low", name: "香港淡季" },
+];
+const inWindow = (d, w) => { const md = d.slice(5); return w.from <= w.to ? md >= w.from && md <= w.to : md >= w.from || md <= w.to; };
+const holCache = {};
+async function loadHolidays(cc, year) {
+  const k = cc + year;
+  if (!holCache[k]) holCache[k] = (DEMO ? Promise.resolve(null) : api(`/api/holidays?country=${cc}&year=${year}`)).catch(() => null).then((r) => r || { holidays: [], breaks: [] });
+  return holCache[k];
+}
+function tripCountries() {
+  const cs = [findAp(S.from).country, findAp(S.to).country].map((c) => COUNTRY_CODE[c]).filter(Boolean);
+  return Array.from(new Set(["TW", ...cs]));
+}
+function dayInfo(d, H, ccs) {
+  const hol = [], reasons = [];
+  let level = null;
+  for (const cc of ccs) {
+    for (const h of (H[cc + d.slice(0, 4)] || { holidays: [] }).holidays) if (h.date === d) hol.push({ cc, name: h.name });
+    for (const b of (H[cc + d.slice(0, 4)] || { breaks: [] }).breaks) if (d >= b.start && d <= b.end) { level = "peak"; reasons.push(`${COUNTRY_NAME[cc] === "台灣" ? "" : COUNTRY_NAME[cc]}${b.name}連假`); }
+  }
+  for (const w of SEASONS) {
+    if (w.cc !== "*" && !ccs.includes(w.cc)) continue;
+    if (!inWindow(d, w)) continue;
+    if (w.level === "peak") { level = "peak"; reasons.push(w.name); } else if (!level) { level = "low"; reasons.push(w.name); }
+  }
+  return { hol, level, reasons };
+}
+
+async function openCalendar(focus = "dep") {
+  const ccs = tripCountries();
+  const start = new Date(); start.setDate(1);
+  const months = Array.from({ length: 13 }, (_, i) => new Date(start.getFullYear(), start.getMonth() + i, 1));
+  const years = Array.from(new Set(months.map((m) => m.getFullYear())));
+  const H = {};
+  const sel = { dep: S.depart, ret: S.trip === "rt" ? S.ret : null, picking: focus === "ret" && S.trip === "rt" ? "ret" : "dep" };
+  const ow = () => S.trip === "ow";
+  const destName = ccs.filter((c) => c !== "TW").map((c) => COUNTRY_NAME[c]).join("、");
+
+  const root = $("#sheetRoot");
+  root.innerHTML = `<div class="cal" role="dialog" aria-modal="true" aria-label="選擇日期">
+    <div class="cal-top">
+      <div class="row"><button class="x" id="calX" aria-label="關閉">×</button><h2>選擇日期</h2>
+        <div class="seg"><button type="button" id="calRT" aria-pressed="${!ow()}">來回</button><button type="button" id="calOW" aria-pressed="${ow()}">單程</button></div></div>
+      <div class="cal-legend"><span><i class="lg-dot d-tw"></i>台灣假日</span>${destName ? `<span><i class="lg-dot d-dest"></i>${esc(destName)}假日</span>` : ""}<span><i class="lg-box" style="background:color-mix(in srgb,var(--bad) 18%,transparent)"></i>旺季</span><span><i class="lg-box" style="background:color-mix(in srgb,var(--good) 20%,transparent)"></i>淡季</span></div>
+      <div class="cal-wk">${"日一二三四五六".split("").map((w, i) => `<span class="${i === 0 || i === 6 ? "we" : ""}">${w}</span>`).join("")}</div>
+    </div>
+    <div class="cal-body" id="calBody"></div>
+    <div class="cal-foot">
+      <div class="cal-note">淡旺季是依連假、寒暑假和當地季節推估，實際票價以搜尋結果為準。</div>
+      <div class="cal-pick"><button id="pkDep"></button><button id="pkRet" class="r"></button></div>
+      <button class="btn primary big" id="calOK" style="width:100%">確認</button>
+    </div>
+  </div>`;
+  const body = $("#calBody");
+
+  const draw = () => {
+    const today = todayStr();
+    body.innerHTML = months.map((m) => {
+      const y = m.getFullYear(), mo = m.getMonth();
+      const days = new Date(y, mo + 1, 0).getDate();
+      let cells = "<span></span>".repeat(m.getDay());
+      const notes = new Map();
+      for (let dd = 1; dd <= days; dd++) {
+        const d = ymd(new Date(y, mo, dd)), wd = new Date(y, mo, dd).getDay();
+        const info = dayInfo(d, H, ccs);
+        const past = d < today;
+        const isSel = d === sel.dep || d === sel.ret;
+        const inRange = sel.dep && sel.ret && d > sel.dep && d < sel.ret;
+        const twHol = info.hol.filter((h) => h.cc === "TW"), destHol = info.hol.filter((h) => h.cc !== "TW");
+        const cls = ["cal-day", wd === 0 || wd === 6 ? "we" : "", info.hol.length ? "hol" : "", past ? "past" : isSel ? "sel" : inRange ? "in" : info.level || ""].join(" ");
+        const label = d === sel.dep ? (ow() ? "出發" : "去程") : d === sel.ret ? "回程" : (info.hol[0]?.name || "").slice(0, 4);
+        cells += `<button type="button" class="${cls}" data-d="${d}" aria-label="${d}${info.hol.map((h) => " " + h.name).join("")}${info.level === "peak" ? " 旺季" : info.level === "low" ? " 淡季" : ""}">
+          ${twHol.length || destHol.length ? `<span class="dots">${twHol.length ? `<i class="d-tw"></i>` : ""}${destHol.length ? `<i class="d-dest"></i>` : ""}</span>` : ""}${dd}${label ? `<small>${esc(label)}</small>` : ""}</button>`;
+        for (const h of info.hol) notes.set("h" + d + h.cc + h.name, `<li><span class="k">${mo + 1}/${dd}</span><span><i class="lg-dot ${h.cc === "TW" ? "d-tw" : "d-dest"}" style="display:inline-block;margin-right:5px"></i>${h.cc === "TW" ? "" : esc(COUNTRY_NAME[h.cc] || h.cc) + " "}${esc(h.name)}</span></li>`);
+      }
+      // 本月的淡旺季區間
+      const seen = new Set(), ranges = [];
+      for (const cc of ccs) for (const b of (H[cc + y] || { breaks: [] }).breaks) {
+        if (b.end.slice(0, 7) < `${y}-${String(mo + 1).padStart(2, "0")}` || b.start.slice(0, 7) > `${y}-${String(mo + 1).padStart(2, "0")}`) continue;
+        const k = b.start + b.name; if (seen.has(k)) continue; seen.add(k);
+        ranges.push({ s: b.start, e: b.end, t: `${cc === "TW" ? "" : COUNTRY_NAME[cc]}${b.name}連假・旺季，機票通常較貴`, lv: "peak" });
+      }
+      for (const w of SEASONS) {
+        if (w.cc !== "*" && !ccs.includes(w.cc)) continue;
+        const first = ymd(new Date(y, mo, 1)), last = ymd(new Date(y, mo, days));
+        let hit = false; for (let dd = 1; dd <= days; dd++) if (inWindow(ymd(new Date(y, mo, dd)), w)) { hit = true; break; }
+        if (!hit || seen.has(w.name + mo)) continue; seen.add(w.name + mo);
+        ranges.push({ s: `${y}-${w.from}`, e: `${y}-${w.to}`, t: `${w.name}・${w.level === "peak" ? "旺季，機票通常較貴" : "淡季，比較容易買到便宜票"}`, lv: w.level });
+      }
+      const fmt = (x) => `${+x.slice(5, 7)}/${+x.slice(8, 10)}`;
+      const rangeHtml = ranges.map((r) => `<li><span class="k">${fmt(r.s)}–${fmt(r.e)}</span><span class="t-${r.lv}">${esc(r.t)}</span></li>`).join("");
+      const list = [...notes.values()].join("") + rangeHtml;
+      return `<section class="cal-month" id="m-${y}-${mo}"><h3>${y} 年 ${mo + 1} 月</h3><div class="cal-grid">${cells}</div>${list ? `<ul class="cal-notes">${list}</ul>` : ""}</section>`;
+    }).join("");
+    const pd = $("#pkDep"), pr = $("#pkRet");
+    pd.className = sel.picking === "dep" ? "on" : "";
+    pd.innerHTML = `<small>${ow() ? "出發" : "去程"}</small>${sel.dep ? shortDate(sel.dep).replace("（", " 週").replace("）", "") : "選日期"}`;
+    pr.className = "r " + (sel.picking === "ret" && !ow() ? "on" : "");
+    pr.hidden = ow();
+    pr.innerHTML = `<small>回程${sel.dep && sel.ret ? `・共 ${dayDiff(sel.dep, sel.ret) + 1} 天` : ""}</small>${sel.ret ? shortDate(sel.ret).replace("（", " 週").replace("）", "") : "選日期"}`;
+    $("#calOK").disabled = !(sel.dep && (ow() || sel.ret));
+  };
+
+  body.onclick = (e) => {
+    const b = e.target.closest("[data-d]"); if (!b) return;
+    const d = b.dataset.d;
+    if (ow()) { sel.dep = d; }
+    else if (sel.picking === "dep" || !sel.dep || d < sel.dep) { sel.dep = d; sel.ret = null; sel.picking = "ret"; }
+    else { sel.ret = d; sel.picking = "dep"; }
+    const top = body.scrollTop; draw(); body.scrollTop = top;
+  };
+  $("#pkDep").onclick = () => { sel.picking = "dep"; draw(); };
+  $("#pkRet").onclick = () => { sel.picking = "ret"; draw(); };
+  $("#calRT").onclick = () => { S.trip = "rt"; $("#calRT").setAttribute("aria-pressed", true); $("#calOW").setAttribute("aria-pressed", false); if (!sel.ret) sel.picking = "ret"; draw(); };
+  $("#calOW").onclick = () => { S.trip = "ow"; $("#calOW").setAttribute("aria-pressed", true); $("#calRT").setAttribute("aria-pressed", false); sel.ret = null; draw(); };
+  const close = () => { root.innerHTML = ""; document.removeEventListener("keydown", esc2); renderForm(); persist(); };
+  const esc2 = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", esc2);
+  $("#calX").onclick = close;
+  $("#calOK").onclick = () => {
+    S.depart = sel.dep;
+    if (!ow()) S.ret = sel.ret;
+    close();
+  };
+
+  draw();
+  const target = (focus === "ret" && sel.ret) || sel.dep || todayStr();
+  const el = document.getElementById(`m-${+target.slice(0, 4)}-${+target.slice(5, 7) - 1}`);
+  if (el) body.scrollTop = el.offsetTop - 8;
+  // 假日資料載入後再畫一次
+  await Promise.all(ccs.flatMap((cc) => years.map(async (y) => (H[cc + y] = await loadHolidays(cc, y)))));
+  if (!document.body.contains(body)) return;
+  const top = body.scrollTop; draw(); body.scrollTop = top;
+}
 
 /* ---------- 底部面板 ---------- */
 function openSheet(title, html, onMount) {
