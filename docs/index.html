@@ -706,19 +706,26 @@ async function openBooking(f, d, outbound) {
       body.innerHTML = `<div class="empty"><b>暫時查不到訂票選項</b>可以到 Google 航班直接查看。<div style="margin-top:12px"><a class="btn" href="${esc(r.bookingUrl)}" target="_blank" rel="noopener">開啟 Google 航班 ↗</a></div></div>`;
       return;
     }
-    const best = r.options[0].price;
-    body.innerHTML = `<div class="stack">${r.options.map((o, i) => `
-      <div class="opt" style="cursor:default;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    const TRUSTED = /trip\.com|攜程|expedia|booking\.com|agoda|priceline|eztravel|易遊|lion ?travel|雄獅|colatour|可樂|settour|東南旅遊|startravel|燦星|liontravel|klook|kkday/i;
+    const isTrusted = (o) => o.airline || o.legs.every((l) => l.airline || TRUSTED.test(l.seller || o.seller)) || TRUSTED.test(o.seller);
+    const safe = r.options.filter(isTrusted), others = r.options.filter((o) => !isTrusted(o));
+    const best = safe.length ? safe[0].price : null;
+    const card = (o, i, list, trusted) => `
+      <div class="opt" style="cursor:default;align-items:center;justify-content:space-between;flex-wrap:wrap${trusted ? "" : ";opacity:.85"}">
         <div style="min-width:0;flex:1">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${esc(o.seller)}</b>${i === 0 ? `<span class="tag cheap">最便宜</span>` : ""}${o.airline ? `<span class="tag fast">航空公司官網</span>` : ""}${o.separate ? `<span class="tag" style="background:var(--warn-soft);color:var(--warn)">去回分開買</span>` : ""}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b>${esc(o.seller)}</b>${trusted && i === 0 ? `<span class="tag cheap">最便宜</span>` : ""}${o.airline ? `<span class="tag fast">航空公司官網</span>` : trusted ? `<span class="tag" style="background:var(--good-soft);color:var(--good)">大型平台</span>` : ""}${o.separate ? `<span class="tag" style="background:var(--warn-soft);color:var(--warn)">去回分開買</span>` : ""}</div>
           <div class="num" style="font-family:var(--font-display);font-weight:700;font-size:20px">${money(o.price, r.currency)}</div>
-          <small class="num">${[perPerson(o.price, q, r.currency), i > 0 ? `比最便宜貴 ${money(o.price - best, r.currency)}` : ""].filter(Boolean).join("・")}</small>
+          <small class="num">${[perPerson(o.price, q, r.currency), best != null && o.price !== best ? (o.price > best ? `比安全平台最低貴 ${money(o.price - best, r.currency)}` : `比安全平台最低便宜 ${money(best - o.price, r.currency)}`) : ""].filter(Boolean).join("・")}</small>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">${o.legs.map((l, j) => l.url
-          ? `<button class="btn ${o.legs.length === 1 ? "primary" : ""}" data-go="${i}-${j}">${l.label ? "訂" + l.label : "前往訂票"} ↗</button>`
+          ? `<button class="btn ${trusted && o.legs.length === 1 ? "primary" : ""}" data-go="${r.options.indexOf(o)}-${j}">${l.label ? "訂" + l.label : "前往訂票"} ↗</button>`
           : l.phone ? `<span class="sub">電話訂票 ${esc(l.phone)}</span>` : "").join("")}</div>
-      </div>`).join("")}</div>
-      <div class="sub" style="margin-top:12px">價格是這組航班、${paxOf(q)} 位乘客的總價，實際以訂票網站為準。點「前往訂票」會在新分頁打開該網站。</div>`;
+      </div>`;
+    body.innerHTML = `
+      <div class="sub" style="margin-bottom:8px">只列出航空公司官網和大型訂票平台，退改票和客服比較有保障。</div>
+      <div class="stack">${safe.length ? safe.map((o, i) => card(o, i, safe, true)).join("") : `<div class="empty"><b>這組航班沒有找到大型平台的報價</b>可以到 Google 航班或航空公司官網直接查。<div style="margin-top:12px"><a class="btn" href="${esc(r.bookingUrl)}" target="_blank" rel="noopener">開啟 Google 航班 ↗</a></div></div>`}</div>
+      ${others.length ? `<details style="margin-top:14px"><summary class="sub" style="cursor:pointer;padding:6px 0">其他網站 ${others.length} 家${others[0].price < (best ?? Infinity) ? `（最低 ${money(others[0].price, r.currency)}）` : ""}・較不熟悉，訂之前先查評價</summary><div class="stack" style="margin-top:8px">${others.map((o, i) => card(o, i, others, false)).join("")}</div></details>` : ""}
+      <div class="sub" style="margin-top:12px">價格是這組航班、${paxOf(q)} 位乘客的總價，實際以訂票網站為準。</div>`;
     body.onclick = (e) => {
       const b = e.target.closest("[data-go]"); if (!b) return;
       const [i, j] = b.dataset.go.split("-").map(Number);
